@@ -1,0 +1,603 @@
+---
+  html_document:
+    toc: true
+    highlight: zenburn
+    theme: united
+---
+
+```{r setup, echo=FALSE}
+knitr::opts_chunk$set(tidy=TRUE, highlight=TRUE, dev="png",
+               cache=TRUE, highlight=TRUE, autodep=TRUE, warning=FALSE, error=FALSE,
+               message=FALSE, prompt=TRUE, comment='', fig.cap='')
+```
+
+# Overview
+
+```{r qc-setup}
+library(ggplot2)
+library(reshape)
+library(gplots)
+library(edgeR)
+library(CHBUtils)
+library(pheatmap)
+project_summary = "/Users/rory/cache/mosquito-rnaseq/gambiae/project-summary.csv"
+counts_file = "/Users/rory/cache/mosquito-rnaseq/gambiae/combined.counts"
+cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442",
+"#0072B2", "#D55E00", "#CC79A7")
+summarydata = read.table(project_summary, header=TRUE, sep=",")
+rownames(summarydata) = summarydata$Name
+summarydata = summarydata[order(summarydata$Name),]
+counts = read.table(counts_file, header=TRUE, row.names="id", check.names=FALSE)
+counts = counts[, order(colnames(counts))]
+# this is a list of all non user-supplied metadata columns that could appear
+known_columns = c("Name", "X.GC", "Exonic.Rate", "Sequences.flagged.as.poor.quality",
+    "rRNA.rate", "Fragment.Length.Mean", "Intronic.Rate", "Intergenic.Rate",
+    "Mapping.Rate", "Quality.format", "Duplication.Rate.of.Mapped", "Mapped",
+    "rRNA", "Sequence.length", "Transcripts.Detected", "Mean.Per.Base.Cov.",
+    "Genes.Detected", "Unique.Starts.Per.Read", "unique_starts_per_read",
+    "complexity")
+summarydata = summarydata[, !colnames(summarydata) %in% c("species")]
+summarydata$tissue_status = as.factor(paste(summarydata$tissue, summarydata$status, sep="_"))
+summarydata$tissue_status_time = as.factor(paste(summarydata$tissue_status, summarydata$time,
+                                                 sep="_"))
+```
+
+```{r heatmap-function}
+get_heatmap_fn = function(summarydata) {
+    # return the pheatmap function with or without metadata
+    metadata = summarydata[, !colnames(summarydata) %in% known_columns, drop=FALSE]
+    if(ncol(metadata) == 0) {
+       return(pheatmap)
+    }
+    else {
+    rownames(metadata) = summarydata$Name
+    heatmap_fn = function(data, ...) {
+        pheatmap(data, annotation=metadata, ...)
+    }
+    return(heatmap_fn)
+}}
+heatmap_fn = get_heatmap_fn(summarydata)
+```
+
+```{r flag-outliers}
+outliers = function(xs) {
+     p_outlier = scores(xs, prob=TRUE, type="t")
+     return(which(p_outlier > 0.95))
+}
+```
+
+# Quality control metrics
+
+## Mapped reads
+```{r mapped-plot}
+ggplot(summarydata, aes(x=Name, y=Mapped)) +
+    theme_bw(base_size=10) +
+    theme(panel.grid.major = element_line(size = .5, color = "grey"),
+          axis.text.x = element_text(angle=90)) +
+    geom_bar(stat="identity") +
+    ylab("mapped reads") + xlab("") 
+```
+
+## Genomic mapping rate
+```{r mapping-rate-plot}
+ggplot(summarydata, aes(x=Name, y=Mapping.Rate)) +
+    geom_bar(stat="identity") +
+    ylab("mapping rate") + xlab("") +
+    theme_bw(base_size=10) +
+    theme(panel.grid.major = element_line(size = .5, color = "grey"),
+          axis.text.x = element_text(angle=90)) 
+```
+
+## Number of genes detected
+```{r genes-detected-plot}
+ggplot(summarydata, aes(x=Name, y=Genes.Detected)) +
+    geom_bar(stat="identity") +
+    theme_bw(base_size=10) +
+    theme(panel.grid.major = element_line(size = .5, color = "grey"),
+          axis.text.x = element_text(angle=90)) +
+    ylab("genes detected") + xlab("") 
+```
+
+## Exonic mapping rate
+```{r exonic-mapping-plot}
+ggplot(summarydata, aes(x=Name, y=Exonic.Rate)) +
+    geom_bar(stat="identity") +
+    theme_bw(base_size=10) +
+    theme(panel.grid.major = element_line(size = .5, color = "grey"),
+          axis.text.x = element_text(angle=90)) +
+    ylab("exonic mapping rate") + xlab("") 
+```
+
+## rRNA mapping rate
+```{r rRNA-rate-plot}
+ggplot(summarydata, aes(x=Name, y=rRNA.rate)) +
+    geom_bar(stat="identity") +
+    theme_bw(base_size=10) +
+    theme(panel.grid.major = element_line(size = .5, color = "grey"),
+          axis.text.x = element_text(angle=90)) +
+    ylab("rRNA rate") + xlab("") 
+```
+
+## Estimated fragment length of paired-end reads
+```{r fragment-length-plot}
+ggplot(summarydata, aes(x=Name, y=Fragment.Length.Mean)) +
+    geom_bar(stat="identity") +
+    theme_bw(base_size=10) +
+    theme(panel.grid.major = element_line(size = .5, color = "grey"),
+          axis.text.x = element_text(angle=90)) +
+    ylab("fragment length") + xlab("")
+```
+
+## Outlier removal
+
+### CT3_GAMB_Sp_M is an outlier
+From the plots above it is pretty clear that CT3_GAMB_Sp_M is an outlier, something
+must have gone wrong with sequencing it. The quality plots don't look bad (not shown),
+the issue that almost all of the reads map to the unknown chromosome of AgamP4 (below).
+In addition most of these reads are in intergenic regions. I think this sample might
+have some DNA contamination or something in it. Maybe there are rRNA that are all
+on the unknown chromosome and this library wasn't as rRNA depleted as the others.
+We could investigate what went wrong with this lane a little bit more but it would
+take some time, in my opinion it is worth it to just remove it and forget about it.
+
+![](images/ct3-gambiae.png)
+
+You can see on the Pearson correlation heatmap that CT3_GAMB_Sp_M is
+off all by itself, too. It has poor to middling correlation with all of the
+samples. In the Spearman heatmap is looks a little bit better, but you can see it has
+worse correlation with everything else in it's group, even though it still clusters
+with them.
+
+
+## Boxplot of log10 counts per gene
+```{r boxplot-raw}
+melted = melt(counts)
+colnames(melted) = c("sample", "count")
+melted$sample = factor(melted$sample)
+melted$sample = reorder(melted$sample, colnames(counts))
+melted$count = log(melted$count)
+ggplot(melted, aes(x=sample, y=count)) + geom_boxplot() +
+    theme_bw(base_size=10) +
+    theme(panel.grid.major = element_line(size = .5, color = "grey"),
+          axis.text.x = element_text(angle=90)) + xlab("")
+```
+
+## Boxplot of log10 TMM-normalized counts per gene
+Trimmed mean of M-values (TMM) normalization is described
+[here](http://genomebiology.com/2010/11/3/R25)
+
+Robinson, M. D., & Oshlack, A. (2010). A scaling normalization method for differential expression analysis of RNA-seq data. Genome Biology, 11(3). doi:10.1186/gb-2010-11-3-r25
+
+```{r boxplot-normalized}
+y = DGEList(counts=counts)
+y = calcNormFactors(y)
+normalized_counts = cpm(y, normalized.lib.sizes=TRUE)
+melted = melt(normalized_counts)
+colnames(melted) = c("gene", "sample", "count")
+melted$sample = factor(melted$sample)
+melted$sample = reorder(melted$sample, colnames(counts))
+melted$count = log(melted$count)
+ggplot(melted, aes(x=sample, y=count)) + geom_boxplot() +
+    theme_bw(base_size=10) +
+    theme(panel.grid.major = element_line(size = .5, color = "grey"),
+          axis.text.x = element_text(angle=90)) + xlab("")
+```
+
+## Density of log10 TMM-normalized counts
+```{r density-normalized}
+ggplot(melted, aes(x=count, group=sample)) +
+    geom_density() +
+    theme_bw(base_size=10) +
+    theme(panel.grid.major = element_line(size = .5, color = "grey"),
+          axis.text.x = element_text(angle=90)) + xlab("")
+```
+
+## Correlation (Pearson) heatmap of TMM-normalized counts
+```{r pearson-heatmap-normalized}
+heatmap_fn(cor(normalized_counts, method="pearson"), fontsize=6)
+```
+The samples separate out pretty well based on the tissue type and the sex; there is some
+evidence of separation by mated virgin status, especially in MAG.
+
+
+## Correlation (Spearman) heatmap of TMM-normalized counts
+```{r spearman-heatmap-normalized}
+heatmap_fn(cor(normalized_counts, method="spearman"), fontsize=6)
+```
+
+### Outlier samples
+There are four samples that cluster together on the Spearman heatmap that have poor
+correlation with the other samples but correlate with each other. These are
+DT3_HV, DT1_HM, DT1_RBV and BT3_HV. Is there anything special about these samples that
+we don't know about? Did someone else make these libraries? Could you look through
+your notebooks and see if maybe there is something about them that would explain why
+they are correlated with each other? 
+
+That leaves us with four outlier samples CT3_GAMB_Sp_M, DT3_HV, DT1_HM, DT1_RBV, BT3_HV. 
+We'll drop all of these now.
+
+```{r drop-outliers}
+outliers = c("CT3_GAMB_Sp_M", "DT3_HV", "DT1_HM", "DT1_RBV", "BT3_HV")
+summarydata = summarydata[!rownames(summarydata) %in% outliers,]
+counts = counts[, !colnames(counts) %in% outliers]
+normalized_counts = normalized_counts[, !colnames(normalized_counts) %in% outliers]
+```
+
+```{r spearman-heatmap-normalized-no-outliers}
+heatmap_fn(cor(normalized_counts, method="spearman"), fontsize=6)
+```
+
+## MDS plot of TMM-normalized counts
+```{r mds-normalized}
+mds(normalized_counts, k=length(colnames(normalized_counts)) - 1)
+```
+
+# Ontological analysis setup
+
+These are some helper functions we defined to do a GO ontology of the results
+of a DESeq2 results dataframe.
+
+```{r setup-ontology}
+library(biomaRt)
+library(GOstats)
+library(GSEABase)
+mart = useMart("vb_gene_mart_1412")
+gambiae = useMart(biomart="vb_gene_mart_1412", dataset="agambiae_eg_gene")
+
+bm = getBM(mart=gambiae, attributes=c("ensembl_gene_id", "transcript_biotype", "go_name_1006",
+                                      "go_accession", "go_namespace_1003", "external_gene_id",
+                                      "go_linkage_type"))
+goframeData = bm[, c("go_accession", "go_linkage_type", "ensembl_gene_id")]
+colnames(goframeData) = c("frame.go_id", "frame.Evidence", "frame.gene_id")
+goframeData = subset(goframeData, frame.Evidence != '')
+goFrame = GOFrame(goframeData)
+goAllFrame = GOAllFrame(goFrame)
+gsc = GeneSetCollection(goAllFrame, setType = GOCollection())
+
+run_go = function(universe, genes, gsc) {
+    # given a list of gene ids of the gene universe and the enriched genes
+    # and a genesetcollection of ontology terms, find enrichment
+    # for molecular function, biological process and cellular component
+    params = GSEAGOHyperGParams(name="foo", geneSetCollection=gsc, geneIds=genes,
+                                universeGeneIds=universe, ontology="MF",
+                                pvalueCutoff=0.1, conditional=FALSE, testDirection="over")
+    over = hyperGTest(params)
+    mf = summary(over)
+    colnames(mf)[1] = "GOID"
+    params = GSEAGOHyperGParams(name="foo", geneSetCollection=gsc, geneIds=genes,
+                                universeGeneIds=universe, ontology="BP",
+                                pvalueCutoff=0.1, conditional=FALSE, testDirection="over")
+    over = hyperGTest(params)
+    bp = summary(over)
+    colnames(bp)[1] = "GOID"
+    params = GSEAGOHyperGParams(name="foo", geneSetCollection=gsc, geneIds=genes,
+                                universeGeneIds=universe, ontology="CC",
+                                pvalueCutoff=0.1, conditional=FALSE, testDirection="over")
+    over = hyperGTest(params)
+    cc = summary(over)
+    colnames(cc)[1] = "GOID"
+    df = data.frame()
+    if(nrow(mf) > 0) {
+       mf$ontology = "MF"
+       df = rbind(df, mf)
+    }
+    if(nrow(cc) > 0) {
+       cc$ontology = "CC"
+       df = rbind(df, cc)
+    }
+    if(nrow(bp) > 0) {
+       bp$ontology = "BP"
+       df = rbind(df, bp)
+    }
+    return(df)}
+
+deseq_go = function(deseqres, gsc) {
+    # run GO ontology analysis using GOstats from a DESeq dataframe and
+    # a gene set collection
+    universe = rownames(subset(deseqres, baseMean > 10))
+    genes = rownames(subset(deseqres, baseMean > 10 & padj < 0.1))
+    return(run_go(universe, genes, gsc))}
+```
+
+# Differential expression
+
+```{r deseq2-expression-analysis}
+counts <- counts[rowSums(counts>0)>1,]
+dds = DESeqDataSetFromMatrix(countData=counts,
+    colData=summarydata, design = design)
+dds = DESeq(dds)
+```
+
+```{r voom-expression-analysis-time}
+mm = model.matrix(~0 + summarydata$sex + summarydata$tissue_status_time)
+time_design = ~sex+tissue_status_time
+time_dds = DESeqDataSetFromMatrix(countData=counts,
+    colData=summarydata, design = time_design)
+time_dds = DESeq(time_dds)
+```
+
+## Effect of variance stabilization
+Before when we were looking at the variance stabilization, we saw there was a big spike
+in the higher counts using an incomplete model without taking into affect time. Adding
+time into the model smooths out the variance a bit more.
+
+```{r deseq-diagnostics, results='asis'}
+par(mfrow=c(1,3))
+notAllZero <- (rowSums(counts(dds))>0)
+rld <- rlog(dds)
+vsd <- varianceStabilizingTransformation(dds)
+rlogMat <- assay(rld)
+vstMat <- assay(vsd)
+
+meanSdPlot(log2(counts(dds,normalized=TRUE)[notAllZero,] + 1),
+           ylim = c(0,2.5))
+meanSdPlot(assay(rld[notAllZero,]), ylim = c(0,2.5))
+meanSdPlot(assay(vsd[notAllZero,]), ylim = c(0,2.5))
+```
+
+## Dispersion estimates
+Here we can see the effect of shrinking the dispersion back towards the mean dispersion
+for a given expression level. The red line is the fitted dispersion and the black dots
+the dispersion that would be calculated if we just used the gene-wise counts. The
+blue dots are the shrunk dispersions, where the gene-wise dispersions and moved towards
+the fitted dispersion.
+
+
+```{r dispersion-estimate}
+plotDispEsts(dds)
+```
+
+We are all set now to pull out the mating and the time specific differences between
+each tissue.
+
+### Atrium
+```{r atrium-de}
+atrium = results(dds, contrast=list(c("tissue_statusatrium_mated"),
+                          c("tissue_statusatrium_virgin")))
+write.table(atrium, file="atrium_deseq2.tsv", sep="\t", row.names=TRUE, col.names=TRUE,
+            quote=FALSE)
+write.table(deseq_go(atrium, gsc), file="atrium_go.tsv", sep="\t", row.names=FALSE,
+            col.names=TRUE, quote=FALSE)
+atrium_de = subset(atrium, padj < 0.1)
+```
+There are `r nrow(atrium_de)` genes flagged as differentally expressed between
+the atrium of mated and virgin samples, with `r nrow(subset(atrium_de, log2FoldChange > 0))`
+upregulated in mated samples and `r nrow(subset(atrium_de, log2FoldChange < 0))` in the
+virgin samples.
+
+```{r atrium-ma}
+plotMA(atrium)
+```
+
+```{r atrium-volcano}
+atrium_stats = as.data.frame(atrium[, c(2,6)])
+volcano_density_plot(atrium_stats, title=names(atrium_stats), lfc.cutoff=1.5)
+```
+
+This is taking into account the virgin/mated samples, ignoring the time. We can do this by
+controlling for the overall effect of time and the overall effect of tissue and tissue_status
+and examining the interaction between tissue_status and time.
+
+#### Atrium, time specific mating differences
+```{r atrium-time}
+atrium_time_3_all = results(time_dds, contrast=list(c("tissue_status_timeatrium_mated_3"),
+                          c("tissue_status_timeatrium_virgin_3")))
+atrium_time_3_difference = subset(atrium_time_3_all, padj < 0.1)
+atrium_time_24_all = results(time_dds, contrast=list(c("tissue_status_timeatrium_mated_24"),
+                          c("tissue_status_timeatrium_virgin_24")))
+atrium_time_24_difference = subset(atrium_time_24_all, padj < 0.1)
+atrium_3_24_together = intersect(rownames(atrium_time_24_difference),
+    rownames(atrium_time_3_difference))
+atrium_3_4_union = union(rownames(atrium_time_24_difference), rownames(atrium_time_3_difference))
+```
+
+There are quite a few time specific differences in the atrium, `r nrow(atrium_time_3_difference)` 
+in the 3 hour comparison and `r nrow(atrium_time_24_difference)` in the 24 hour comparison. There
+are `r length(intersect(rownames(atrium_time_24_difference), rownames(atrium_time_3_difference)))`
+that are in both the 3 and 24 hour comparisons, indicating there is a stable set of genes
+that remains different between times 3 and 24 hours.
+
+```{r atrium-time-direction}
+direction = function(x) {
+    first = as.numeric(x["first"])
+    second = as.numeric(x["second"])
+    if(first > 0 & second > 0) {
+        return("same")
+    }
+    if(first < 0 & second < 0) {
+        return("same")
+    }
+    else {
+        return("different")
+    }
+}
+decorate_direction = function(df1, df2, intersection) {
+    z = data.frame(first=df1[intersection,]$log2FoldChange,
+                   second=df2[intersection,]$log2FoldChange)
+    rownames(z) = intersection
+    z$direction = apply(z, 1, direction)
+    return(z)
+}
+z = decorate_direction(atrium_time_3_all, atrium_time_24_all, atrium_3_24_together)
+```
+
+ `r table(z$direction)["same"]` of the genes that are flagged as differentially expressed both at time 3 and 24 are in the same direction vs `r table(z$direction)["different"]` in the opposite direction.
+
+```{r output-atrium-time-table}
+write.table(atrium_time_3_all, file="atrium_time_3.tsv", sep="\t", row.names=TRUE,
+  col.names=TRUE, quote=FALSE)
+write.table(deseq_go(atrium_time_3_all, gsc), file="atrium_time_3_go.tsv", sep="\t",
+            row.names=FALSE, col.names=TRUE, quote=FALSE)
+write.table(atrium_time_24_all, file="atrium_time_24.tsv", sep="\t", row.names=TRUE,
+  col.names=TRUE, quote=FALSE)
+write.table(deseq_go(atrium_time_24_all, gsc), file="atrium_time_24_go.tsv", sep="\t",
+            row.names=FALSE, col.names=TRUE, quote=FALSE)
+```
+
+### Head
+```{r head-de}
+head = results(dds, contrast=list(c("tissue_statushead_mated"),
+                          c("tissue_statushead_virgin")))
+write.table(head, file="head_deseq2.tsv", sep="\t", row.names=TRUE, col.names=TRUE,
+            quote=FALSE)
+write.table(deseq_go(head, gsc), file="head_go.tsv", sep="\t", row.names=FALSE,
+            col.names=TRUE, quote=FALSE)
+head_de = subset(head, padj < 0.1)
+```
+
+There are `r nrow(head_de)` genes flagged as differentally expressed between
+the head of mated and virgin samples, with `r nrow(subset(head_de, log2FoldChange > 0))`
+upregulated in mated samples and `r nrow(subset(head_de, log2FoldChange < 0))` downregulated
+in mated samples.
+
+```{r head-ma}
+plotMA(head)
+```
+
+```{r head-volcano}
+head_stats = as.data.frame(head[, c(2,6)])
+volcano_density_plot(head_stats, title=names(head_stats), lfc.cutoff=1.5)
+```
+
+#### Head, time specific mating differences
+```{r head-time}
+head_time_3_all = results(time_dds, contrast=list(c("tissue_status_timehead_mated_3"),
+                          c("tissue_status_timehead_virgin_3")))
+head_time_3_difference = subset(head_time_3_all, padj < 0.1)
+head_time_24_all = results(time_dds, contrast=list(c("tissue_status_timehead_mated_24"),
+                          c("tissue_status_timehead_virgin_24")))
+head_time_24_difference = subset(head_time_24_all, padj < 0.1)
+head_3_24_together = intersect(rownames(head_time_24_difference),
+    rownames(head_time_3_difference))
+head_3_4_union = union(rownames(head_time_24_difference), rownames(head_time_3_difference))
+```
+
+There are quite a few time specific differences in the head, `r nrow(head_time_3_difference)` 
+in the 3 hour comparison and `r nrow(head_time_24_difference)` in the 24 hour comparison. There
+are `r length(intersect(rownames(head_time_24_difference), rownames(head_time_3_difference)))`
+that are in both the 3 and 24 hour comparisons, indicating there is a stable set of genes
+that remains different between times 3 and 24 hours.
+
+```{r head-time-direction}
+z = decorate_direction(head_time_3_all, head_time_24_all, head_3_24_together)
+```
+
+ `r table(z$direction)["same"]` of the genes that are flagged as differentially expressed both at time 3 and 24 are in the same direction vs `r table(z$direction)["different"]` in the opposite direction.
+
+```{r output-head-time-table}
+write.table(head_time_3_all, file="head_time_3.tsv", sep="\t", row.names=TRUE,
+  col.names=TRUE, quote=FALSE)
+write.table(deseq_go(head_time_3_all, gsc), file="head_time_3_go.tsv", sep="\t",
+            row.names=FALSE, col.names=TRUE, quote=FALSE)
+write.table(head_time_24_all, file="head_time_24.tsv", sep="\t", row.names=TRUE,
+  col.names=TRUE, quote=FALSE)
+write.table(deseq_go(head_time_24_all, gsc), file="head_time_24_go.tsv", sep="\t",
+            row.names=FALSE, col.names=TRUE, quote=FALSE)
+```
+
+### MAG
+```{r MAG-de}
+MAG = results(dds, contrast=list(c("tissue_statusMAG_mated"),
+                          c("tissue_statusMAG_virgin")))
+write.table(MAG, file="MAG_deseq2.tsv", sep="\t", row.names=TRUE, col.names=TRUE,
+            quote=FALSE)
+write.table(deseq_go(MAG, gsc), file="MAG_go.tsv", sep="\t", row.names=FALSE,
+            col.names=TRUE, quote=FALSE)
+MAG_de = subset(MAG, padj < 0.1)
+```
+There are `r nrow(MAG_de)` genes flagged as differentally expressed between
+the atrium of mated and virgin samples, with `r nrow(subset(MAG_de, log2FoldChange > 0))`
+upregulated in mated samples and `r nrow(subset(MAG_de, log2FoldChange < 0))` downregulated
+in mated samples.
+
+```{r MAG-ma}
+plotMA(MAG)
+```
+
+```{r MAG-volcano}
+MAG_stats = as.data.frame(MAG[, c(2,6)])
+volcano_density_plot(MAG_stats, title=names(MAG_stats), lfc.cutoff=1.5)
+```
+
+### body
+```{r body-de}
+body = results(dds, contrast=list(c("tissue_statusbody_mated"),
+                          c("tissue_statusbody_virgin")))
+write.table(body, file="body_deseq2.tsv", sep="\t", row.names=TRUE, col.names=TRUE,
+            quote=FALSE)
+body_de = subset(body, padj < 0.1)
+```
+There are `r nrow(body_de)` genes flagged as differentally expressed between
+the atrium of mated and virgin samples, with `r nrow(subset(body_de, log2FoldChange > 0))`
+upregulated in mated samples and `r nrow(subset(body_de, log2FoldChange < 0))` downregulated
+in mated samples.
+
+```{r body-ma}
+plotMA(body)
+```
+
+```{r body-volcano}
+body_stats = as.data.frame(body[, c(2,6)])
+volcano_density_plot(body_stats, title=names(body_stats), lfc.cutoff=1.5)
+```
+
+### spermatheca
+```{r spermatheca-de}
+spermatheca = results(dds, contrast=list(c("tissue_statusspermatheca_mated"),
+                          c("tissue_statusspermatheca_virgin")))
+write.table(spermatheca, file="spermatheca_deseq2.tsv", sep="\t", row.names=TRUE, col.names=TRUE,
+            quote=FALSE)
+write.table(deseq_go(spermatheca, gsc), file="spermatheca_go.tsv", sep="\t", row.names=FALSE,
+            col.names=TRUE, quote=FALSE)
+spermatheca_de = subset(spermatheca, padj < 0.1)
+```
+There are `r nrow(spermatheca_de)` genes flagged as differentally expressed between
+the atrium of mated and virgin samples, with `r nrow(subset(spermatheca_de, log2FoldChange > 0))`
+upregulated in mated samples and `r nrow(subset(spermatheca_de, log2FoldChange < 0))`
+downregulated in mated samples.
+
+```{r spermatheca-ma}
+plotMA(spermatheca)
+```
+
+```{r spermatheca-volcano}
+spermatheca_stats = as.data.frame(spermatheca[, c(2,6)])
+volcano_density_plot(spermatheca_stats, title=names(spermatheca_stats), lfc.cutoff=1.5)
+```
+
+#### spermatheca, time specific mating differences
+```{r spermatheca-time}
+spermatheca_time_3_all = results(time_dds, contrast=list(c("tissue_status_timespermatheca_mated_3"),
+                          c("tissue_status_timespermatheca_virgin_3")))
+spermatheca_time_3_difference = subset(spermatheca_time_3_all, padj < 0.1)
+spermatheca_time_24_all = results(time_dds, contrast=list(c("tissue_status_timespermatheca_mated_24"),
+                          c("tissue_status_timespermatheca_virgin_24")))
+spermatheca_time_24_difference = subset(spermatheca_time_24_all, padj < 0.1)
+spermatheca_3_24_together = intersect(rownames(spermatheca_time_24_difference),
+    rownames(spermatheca_time_3_difference))
+spermatheca_3_4_union = union(rownames(spermatheca_time_24_difference), rownames(spermatheca_time_3_difference))
+```
+
+There are quite a few time specific differences in the spermatheca, `r nrow(spermatheca_time_3_difference)` 
+in the 3 hour comparison and `r nrow(spermatheca_time_24_difference)` in the 24 hour comparison. There
+are `r length(intersect(rownames(spermatheca_time_24_difference), rownames(spermatheca_time_3_difference)))`
+that are in both the 3 and 24 hour comparisons, indicating there is a stable set of genes
+that remains different between times 3 and 24 hours.
+
+```{r spermatheca-time-direction}
+z = decorate_direction(spermatheca_time_3_all, spermatheca_time_24_all, spermatheca_3_24_together)
+```
+
+ `r table(z$direction)["same"]` of the genes that are flagged as differentially expressed both at time 3 and 24 are in the same direction vs `r table(z$direction)["different"]` in the opposite direction.
+
+```{r output-spermatheca-time-table}
+write.table(spermatheca_time_3_all, file="spermatheca_time_3.tsv", sep="\t", row.names=TRUE,
+  col.names=TRUE, quote=FALSE)
+write.table(deseq_go(spermatheca_time_3_all, gsc), file="spermatheca_time_3_go.tsv", sep="\t",
+            row.names=FALSE, col.names=TRUE, quote=FALSE)
+write.table(spermatheca_time_24_all, file="spermatheca_time_24.tsv", sep="\t", row.names=TRUE,
+  col.names=TRUE, quote=FALSE)
+write.table(deseq_go(spermatheca_time_24_all, gsc), file="spermatheca_time_24_go.tsv", sep="\t",
+            row.names=FALSE, col.names=TRUE, quote=FALSE)
+```
+
