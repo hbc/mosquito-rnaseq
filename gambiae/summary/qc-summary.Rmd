@@ -572,6 +572,7 @@ spermatheca_time_3_all = results(time_dds, contrast=list(c("tissue_status_timesp
 spermatheca_time_3_difference = subset(spermatheca_time_3_all, padj < 0.1)
 spermatheca_time_24_all = results(time_dds, contrast=list(c("tissue_status_timespermatheca_mated_24"),
                           c("tissue_status_timespermatheca_virgin_24")))
+spermatheca_time_24_all = results(time_dds, contrast=c('tissue_status_time', 'spermatheca_mated_24', 'spermatheca_virgin_24'), addMLE=TRUE)
 spermatheca_time_24_difference = subset(spermatheca_time_24_all, padj < 0.1)
 spermatheca_3_24_together = intersect(rownames(spermatheca_time_24_difference),
     rownames(spermatheca_time_3_difference))
@@ -601,3 +602,18 @@ write.table(deseq_go(spermatheca_time_24_all, gsc), file="spermatheca_time_24_go
             row.names=FALSE, col.names=TRUE, quote=FALSE)
 ```
 
+#### comparison of spermatheca 24 hours mated with microarray results
+spermatheca_24_microarray = read.table("microarray-spermatheca.tsv", sep="\t")
+colnames(spermatheca_24_microarray) = c("ensembl_gene_id", "microarray")
+spermatheca_24_microarray = subset(spermatheca_24_microarray, ensembl_gene_id != "0")
+z = data.frame(spermatheca_time_24_all)
+m = merge(spermatheca_24_microarray, z, by.x="ensembl_gene_id", by.y="row.names")
+
+keep = abs(m$lfcMLE) > 1.5 | abs(m$microarray) > 1.5
+hmm = m[keep,]
+fix_microarray = function(x) {
+    if(x > 0) {
+        return(x)
+    }
+    else {
+        return(abs(1/x))}}

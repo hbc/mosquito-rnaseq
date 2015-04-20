@@ -496,3 +496,143 @@ ggplot(m, aes(X1, value, color=tissue)) + geom_point() + scale_y_log10() +
     theme(panel.grid.major = element_line(size = .5, color = "grey"),
           axis.text.x = element_text(angle=90)) + xlab("") + ylab("score")
 ```
+
+# Digging into AALB000422, AALB000423 and AALB014036
+Why are 422 and 423 missing? It looks like they are only expressed in MAG, and are expressed
+at an extremely high level in MAG.
+
+```{r missing-genes}
+missing_genes = c("AALB000422", "AALB000423")
+counts[missing_genes,]
+MAG[missing_genes,]
+```
+
+We can see there is a high SE for the log fold change, which is why these are not being
+called significant, it isn't that these genes aren't expressed.
+
+```{r old-results}
+old_counts = read.table("/Volumes/Clotho/Users/rory/cache/mosquito_project/data/albimanus/combined.counts", header=TRUE, sep="\t", row.names=1)
+colnames(old_counts) = c("AT3_MAG_M_Albi", "BT3_ALBI_At_M", "BT3_ALBI_At_V",
+ "BT3_MAG_V_Albi", "CT3_ALBI_At_M",  "CT3_ALBI_At_V",  "CT3_MAG_M_Albi", "CT3_MAG_V_Albi",
+ "DT3_ALBI_At_M",  "DT3_ALBI_At_V",  "DT3_MAG_M_Albi", "DT3_MAG_V_Albi")
+old_MAG = read.table("/Volumes/Clotho/Users/rory/cache/mosquito_project/scripts/albimanus_MAG.tsv",
+                     sep="\t", header=TRUE)
+library(reshape)
+melted_counts = melt(as.matrix(counts))
+colnames(melted_counts) = c("gene", "sample", "count")
+melted_counts$run = "new"
+
+old_melted_counts = melt(as.matrix(old_counts))
+colnames(old_melted_counts) = c("gene", "sample", "count")
+old_melted_counts$run = "old"
+head(old_melted_counts)
+
+in_both = rbind(melted_counts[melted_counts$sample %in% old_melted_counts$sample,], old_melted_counts)
+m = merge(melted_counts, old_melted_counts, by.x=c("gene", "sample"), by.y=c("gene", "sample"),
+ all=FALSE)
+```
+
+We can see below that in general we have more reads aligning to each gene with the new
+analysis. This is likely to be partially due improvements in the aligner and improvements
+in the gene models.
+
+```{r old-vs-new}
+ggplot(m, aes(count.x, count.y)) + geom_point() + xlab("new") + ylab("old") + scale_y_sqrt() + scale_x_sqrt()
+```
+
+Looking at the old code that just had the atrium and MAG to compare, we did the same thing where we built the model using all of the samples. We used limma last time to call differential expression instead of DESeq2 which is another source of difference; we could do the same thing again for this sample and see if it is a DESeq2 vs limma difference or not.
+
+```{r mag-limma}
+library(edgeR)
+design = model.matrix(~ 0 + tissue_status, data=summarydata)
+colnames(design) = c("atrium_mated", "atrium_virgin", "body_mated", "body_virgin",
+           "head_mated", "head_virgin", "MAG_mated", "MAG_virgin",
+            "spermatheca_mated", "spermatheca_virgin")
+y = DGEList(counts=counts)
+y = calcNormFactors(y)
+v = voom(y, design, plot=FALSE)
+fit = lmFit(v, design)
+cm = makeContrasts(atrium = atrium_mated - atrium_virgin,
+                   MAG = MAG_mated - MAG_virgin,
+                   head = head_mated - head_virgin,
+                   spermatheca = spermatheca_mated - spermatheca_virgin, levels=design)
+fit2 = contrasts.fit(fit, cm)
+fit2 = eBayes(fit2)
+MAG_results = topTable(fit2, n=Inf, p.value=1, coef="MAG")
+MAG_results[missing_genes,]
+```
+
+So it looks like these genes get knocked out of being significant and it isn't a limma-DESeq2
+difference. It looks like adding the other tissues in knocks them out.
+
+
+```{r mag-limma-atrium-MAG-only}
+library(edgeR)
+summarysubset = subset(summarydata, tissue %in% c("atrium", "MAG"))
+countssubset = counts[, colnames(counts) %in% summarysubset$Name]
+summarysubset$tissue_status = as.character(summarysubset$tissue_status)
+summarysubset$tissue = as.character(summarysubset$tissue)
+summarysubset$status = as.character(summarysubset$status)
+design = model.matrix(~ 0 + tissue_status, data=summarysubset)
+colnames(design) = c("MAG_mated", "MAG_virgin", "atrium_mated", "atrium_virgin")
+y = DGEList(counts=countssubset)
+y = calcNormFactors(y)
+v = voom(y, design, plot=FALSE)
+fit = lmFit(v, design)
+cm = makeContrasts(atrium = atrium_mated - atrium_virgin,
+                   MAG = MAG_mated - MAG_virgin, levels=design)
+fit2 = contrasts.fit(fit, cm)
+fit2 = eBayes(fit2)
+MAG_results = topTable(fit2, n=Inf, p.value=1, coef="MAG")
+MAG_results[missing_genes,]
+```
+
+Quantile normalizing the voom counts also drops them out completely. 
+
+```{r mag-limma-atrium-normalized}
+library(edgeR)
+summarysubset = subset(summarydata, tissue %in% c("atrium", "MAG"))
+countssubset = counts[, colnames(counts) %in% summarysubset$Name]
+summarysubset$tissue_status = as.character(summarysubset$tissue_status)
+summarysubset$tissue = as.character(summarysubset$tissue)
+summarysubset$status = as.character(summarysubset$status)
+design = model.matrix(~ 0 + tissue_status, data=summarysubset)
+colnames(design) = c("MAG_mated", "MAG_virgin", "atrium_mated", "atrium_virgin")
+y = DGEList(counts=countssubset)
+y = calcNormFactors(y)
+v = voom(y, design, plot=FALSE, normalize='quantile')
+fit = lmFit(v, design)
+cm = makeContrasts(atrium = atrium_mated - atrium_virgin,
+                   MAG = MAG_mated - MAG_virgin, levels=design)
+fit2 = contrasts.fit(fit, cm)
+fit2 = eBayes(fit2)
+MAG_results_2 = topTable(fit2, n=Inf, p.value=1, coef="MAG")
+MAG_results_2[missing_genes,]
+```
+
+There are some reproducible hits swapping normalization, but it is only around half.
+There are a bunch of fringe genes that are sensitive to how we do the analysis.
+
+
+head(m)
+ggplot(in_both[in_both$gene %in% missing_genes,], aes(gene, count, fill=run)) + geom_boxplot()
+
+ggplot(in_both[in_both$gene %in% missing_genes,], aes(gene, count, fill=run)) +
+ geom_bar(position="dodge", stat="identity") + facet_wrap(~ sample) +
+ theme(axis.text.x=element_text(angle=90)) + xlab("") + ylab("# alignments")
+
+in_either = unique(c(rownames(subset(MAG_results, adj.P.Val < 0.1)),
+    rownames(subset(MAG_results_2, adj.P.Val < 0.1))))
+
+signew = MAG_results[in_either,]
+signew$run = "new"
+sigold = MAG_results_2[in_either,]
+signew$run = "old"
+
+signew = subset(MAG_results, adj.P.Val < 0.1)[, c("logFC", "AveExpr", "adj.P.Val")]
+signew$sig = signew$adj.P.Val < 0.1
+sigold = subset(MAG_results_2, adj.P.Val < 0.1)[, c("logFC", "AveExpr", "adj.P.Val")]
+sigold$sig = sigold$adj.P.Val < 0.1
+
+intersect(rownames(subset(MAG_results, adj.P.Val < 0.1)),
+          rownames(subset(MAG_results_2, adj.P.Val < 0.1))))
