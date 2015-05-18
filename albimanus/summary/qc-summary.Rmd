@@ -7,8 +7,8 @@
 
 ```{r setup, echo=FALSE}
 knitr::opts_chunk$set(tidy=TRUE, highlight=TRUE, dev="png",
-               cache=TRUE, highlight=TRUE, autodep=TRUE, warning=FALSE, error=FALSE,
-               message=FALSE, prompt=TRUE, comment='', fig.cap='')
+               cache=TRUE, highlight=TRUE, autodep=TRUE, warning=FALSE,
+               error=FALSE, message=FALSE, prompt=TRUE, comment='', fig.cap='')
 ```
 
 # Overview
@@ -21,8 +21,8 @@ library(edgeR)
 library(CHBUtils)
 library(pheatmap)
 library(knitr)
-project_summary = "/Users/rory/cache/mosquito-rnaseq/albimanus/project-summary.csv"
-counts_file = "/Users/rory/cache/mosquito-rnaseq/albimanus/combined.counts"
+project_summary = "../project-summary.csv"
+counts_file = "../combined.counts"
 cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442",
 "#0072B2", "#D55E00", "#CC79A7")
 summarydata = read.table(project_summary, header=TRUE, sep=",")
@@ -84,7 +84,7 @@ ggplot(summarydata, aes(x=Name, y=Mapped)) +
     theme(panel.grid.major = element_line(size = .5, color = "grey"),
           axis.text.x = element_text(angle=90)) +
     geom_bar(stat="identity") +
-    ylab("mapped reads") + xlab("") 
+    ylab("mapped reads") + xlab("")
 ```
 
 ## Genomic mapping rate
@@ -94,7 +94,7 @@ ggplot(summarydata, aes(x=Name, y=Mapping.Rate)) +
     ylab("mapping rate") + xlab("") +
     theme_bw(base_size=10) +
     theme(panel.grid.major = element_line(size = .5, color = "grey"),
-          axis.text.x = element_text(angle=90)) 
+          axis.text.x = element_text(angle=90))
 ```
 
 ## Number of genes detected
@@ -104,7 +104,7 @@ ggplot(summarydata, aes(x=Name, y=Genes.Detected)) +
     theme_bw(base_size=10) +
     theme(panel.grid.major = element_line(size = .5, color = "grey"),
           axis.text.x = element_text(angle=90)) +
-    ylab("genes detected") + xlab("") 
+    ylab("genes detected") + xlab("")
 ```
 
 ## Exonic mapping rate
@@ -114,7 +114,7 @@ ggplot(summarydata, aes(x=Name, y=Exonic.Rate)) +
     theme_bw(base_size=10) +
     theme(panel.grid.major = element_line(size = .5, color = "grey"),
           axis.text.x = element_text(angle=90)) +
-    ylab("exonic mapping rate") + xlab("") 
+    ylab("exonic mapping rate") + xlab("")
 ```
 
 ## rRNA mapping rate
@@ -124,7 +124,7 @@ ggplot(summarydata, aes(x=Name, y=rRNA.rate)) +
     theme_bw(base_size=10) +
     theme(panel.grid.major = element_line(size = .5, color = "grey"),
           axis.text.x = element_text(angle=90)) +
-    ylab("rRNA rate") + xlab("") 
+    ylab("rRNA rate") + xlab("")
 ```
 
 ## Estimated fragment length of paired-end reads
@@ -193,10 +193,8 @@ GC content than the spermatheca, MAG and atrium.
 heatmap_fn(cor(normalized_counts, method="spearman"), fontsize=6)
 ```
 
-One sample, DT3_ALBI_Sp_M is very different from all of the other samples. This has
-the lower number of transcripts detected at 1.2k which is about 1/10th of the other samples.
-This sample likely has some kind of either contamination issue or PCR artifact happening,
-where a single gene or a small number of genes was sequenced repeatedly.
+One sample, DT3_ALBI_Sp_M is very different from all of the other samples. This has the lower number of transcripts detected at 1.2k which is about 1/10th of the other samples. This sample likely has some kind of either contamination issue or PCR artifact happening, where a single gene or a small number of genes was sequenced repeatedly.
+
 
 
 ```{r outlier-sample, results='asis'}
@@ -281,7 +279,7 @@ samples.
 There is quite a bit of variability between samples:
 
 ```{r atrium-ma}
-plotMA(atrium)
+DESeq2::plotMA(atrium)
 ```
 
 ```{r atrium-volcano}
@@ -305,7 +303,7 @@ samples.
 There is quite a bit of variability between samples:
 
 ```{r head-ma}
-plotMA(head)
+DESeq2::plotMA(head)
 ```
 
 ```{r head-volcano}
@@ -329,7 +327,7 @@ samples.
 There is quite a bit of variability between samples:
 
 ```{r MAG-ma}
-plotMA(MAG)
+DESeq2::plotMA(MAG)
 ```
 
 ```{r MAG-volcano}
@@ -339,21 +337,35 @@ volcano_density_plot(MAG_stats, title=names(MAG_stats), lfc.cutoff=1.5)
 
 ### body
 ```{r body-de}
-body = results(dds, contrast=list(c("tissue_statusbody_mated"),
-                          c("tissue_statusbody_virgin")))
-write.table(body, file="body_deseq2.tsv", sep="\t", row.names=TRUE, col.names=TRUE,
-            quote=FALSE)
-body_de = subset(body, padj < 0.1)
+summarydata$sex_tissue_status = paste(summarydata$sex, summarydata$tissue_status,
+                                      sep="_")
+design_body = ~sex_tissue_status
+dds_body = DESeqDataSetFromMatrix(countData=counts, colData=summarydata,
+                                  design = design_body)
+dds_body = DESeq(dds_body)
+female_body = results(dds_body, contrast=list(c("sex_tissue_statusfemale_body_mated"),
+    c("sex_tissue_statusfemale_body_virgin")))
+male_body = results(dds_body, contrast=list(c("sex_tissue_statusmale_body_mated"),
+    c("sex_tissue_statusmale_body_virgin")))
+write.table(male_body, file="male_body_deseq2.tsv", sep="\t", row.names=TRUE, col.names=TRUE, quote=FALSE)
+write.table(female_body, file="female_body_deseq2.tsv", sep="\t", row.names=TRUE, col.names=TRUE, quote=FALSE)
+male_body_de = subset(male_body, padj < 0.1)
+female_body_de = subset(female_body, padj < 0.1)
 ```
-There are `r nrow(body_de)` genes flagged as differentally expressed between
-the atrium of mated and virgin samples, with `r nrow(subset(body_de, log2FoldChange > 0))`
-upregulated in mated samples and `r nrow(subset(body_de, log2FoldChange < 0))` in atrium
-samples.
+There are `r nrow(male_body_de)` genes flagged as differentally expressed between
+the atrium of mated and virgin samples in the male, with
+`r nrow(subset(male_body_de, log2FoldChange > 0))`
+upregulated in mated samples and `r nrow(subset(male_body_de, log2FoldChange < 0))` in
+the virgin samples samples.
 
-There is quite a bit of variability between samples:
+There are `r nrow(female_body_de)` genes flagged as differentally expressed between
+the atrium of mated and virgin samples in the female, with
+`r nrow(subset(female_body_de, log2FoldChange > 0))`
+upregulated in mated samples and `r nrow(subset(female_body_de, log2FoldChange < 0))` in
+the virgin samples samples.
 
 ```{r body-ma}
-plotMA(body)
+DESeq2::plotMA(body)
 ```
 
 ```{r body-volcano}
@@ -377,7 +389,7 @@ samples.
 There is quite a bit of variability between samples:
 
 ```{r spermatheca-ma}
-plotMA(spermatheca)
+DESeq2::plotMA(spermatheca)
 ```
 
 ```{r spermatheca-volcano}
@@ -396,7 +408,7 @@ plotPCA(rld, intgroup=c("tissue", "status"))
 ```
 
 ## Effect of variance stabilization
-There is a huge amount of dispersion between these samples. 
+There is a huge amount of dispersion between these samples.
 
 ```{r deseq-diagnostics, results='asis'}
 par(mfrow=c(1,3))
@@ -430,19 +442,27 @@ cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2",
 library(edgeR)
 library(limma)
 library(NMF)
-design = ~sex + tissue_status
+design = ~sex + tissue_status + sex:tissue_status
 dge = DGEList(counts=counts)
 dge = calcNormFactors(y)
 voomed = voom(dge, plot=TRUE)
-tissue_metadata = subset(summarydata, tissue != "body")
+#tissue_metadata = subset(summarydata, tissue != "body")
+tissue_metadata <-  summarydata
 tissue_only = normalized_counts[, colnames(normalized_counts) %in% rownames(tissue_metadata)]
 tissue_only = tissue_only[rowSums(tissue_only) > 1,]
-adf_tissue = AnnotatedDataFrame(tissue_metadata[,c("sex", "tissue")], data.frame(labelDescription=c("sex", "tissue")))
+adf_tissue = AnnotatedDataFrame(tissue_metadata[,c("sex", "tissue")],
+    data.frame(labelDescription=c("sex", "tissue")))
 x = ExpressionSet(as.matrix(tissue_only), adf_tissue)
-n = nmf(x, 4,  seed=12345)
+nbasis <- length(unique(summarydata$tissue))
+```
+
+```{r run-nmf}
+n = nmf(x, nbasis, nrun=100, .options=list(parallel=FALSE))
+```
+
+```{r nmf-plots}
 consensus = consensusmap(n, annCol=x)
-consensusmap(n, annCol=x)
-basismap(n, scale="r1", annColors=list(basis=cbPalette[5:8],
+basismap(n, scale="r1", annColors=list(basis=cbPalette[4:8],
          consensus=brewer.pal(4, "Spectral")),
          main="Metagene Components - All Contributing Genes", Rowv=TRUE)
 s = featureScore(n)
@@ -460,46 +480,89 @@ numfeatures <- sapply(seq(0,1,0.01), function(num) {
 minnumfeatures=20
 rel.basis.contrib.cutoff <- max(seq(0,1,0.01)[apply(numfeatures,2, function(x) all(x>minnumfeatures))])
 
-basismap(n, scale="r1", subsetRow=rel.basis.contrib.cutoff,annColors=list(basis=cbPalette[5:8], consensus=brewer.pal(4, "Spectral")), main="Metagene Components - Most Specific Genes")
+basismap(n, scale="r1", subsetRow=rel.basis.contrib.cutoff,annColors=list(basis=cbPalette[4:8], consensus=brewer.pal(4, "Spectral")), main="Metagene Components - Most Specific Genes")
 
-coefmap(n, scale="c1", labCol=tissue_metadata$tissue, annColors=list(basis=cbPalette[5:9]))
+coefmap(n, scale="c1", labCol=tissue_metadata$tissue, annColors=list(basis=cbPalette[4:8]))
 
 # write out the metagene features
 
 fs = featureScore(n)
 features = extractFeatures(n, 0.90)
-head_features = fs[features[[2]]]
+head_features = fs[features[[5]]]
 head_features[is.na(head_features)] = 1
 head_counts = tissue_only[names(head_features), colnames(tissue_only) %in% subset(summarydata, tissue == "head")$Name]
 head_scores = head_features * log(rowMeans(head_counts))
 head_plot = sort(head_scores, decreasing=TRUE)[1:50]
-
-atrium_features = fs[features[[1]]]
-atrium_features[is.na(atrium_features)] = 1
-spermatheca_features = fs[features[[4]]]
-spermatheca_features[is.na(spermatheca_features)] = 1
-MAG_features = fs[features[[3]]]
-MAG_features[is.na(MAG_features)] = 1
-
 melted = melt(tissue_only[names(head_plot),])
 m = merge(melted, summarydata, by.x="X2", by.y="Name")
 ggplot(m, aes(X1, value, color=tissue)) + geom_point() + scale_y_log10() +
     theme_bw(base_size=10) +
     theme(panel.grid.major = element_line(size = .5, color = "grey"),
           axis.text.x = element_text(angle=90)) + xlab("") + ylab("score")
+write.table(head_plot, file="head_metagene_scores.txt", quote=FALSE, col.names=FALSE)
 
-feature_score_only = sort(head_features, decreasing=TRUE)[1:50]
-melted = melt(tissue_only[names(feature_score_only),])
+
+atrium_features = fs[features[[1]]]
+atrium_features[is.na(atrium_features)] = 1
+atrium_counts = tissue_only[names(atrium_features), colnames(tissue_only) %in% subset(summarydata, tissue == "atrium")$Name]
+atrium_scores = atrium_features * log(rowMeans(atrium_counts))
+atrium_plot = sort(atrium_scores, decreasing=TRUE)[1:50]
+melted = melt(tissue_only[names(atrium_plot),])
 m = merge(melted, summarydata, by.x="X2", by.y="Name")
 ggplot(m, aes(X1, value, color=tissue)) + geom_point() + scale_y_log10() +
     theme_bw(base_size=10) +
     theme(panel.grid.major = element_line(size = .5, color = "grey"),
           axis.text.x = element_text(angle=90)) + xlab("") + ylab("score")
+write.table(atrium_plot, file="atrium_metagene_scores.txt", quote=FALSE, col.names=FALSE)
+
+
+spermatheca_features = fs[features[[4]]]
+spermatheca_features[is.na(spermatheca_features)] = 1
+spermatheca_counts = tissue_only[names(spermatheca_features), colnames(tissue_only) %in% subset(summarydata, tissue == "spermatheca")$Name]
+spermatheca_scores = spermatheca_features * log(rowMeans(spermatheca_counts))
+spermatheca_plot = sort(spermatheca_scores, decreasing=TRUE)[1:50]
+melted = melt(tissue_only[names(spermatheca_plot),])
+m = merge(melted, summarydata, by.x="X2", by.y="Name")
+ggplot(m, aes(X1, value, color=tissue)) + geom_point() + scale_y_log10() +
+    theme_bw(base_size=10) +
+    theme(panel.grid.major = element_line(size = .5, color = "grey"),
+          axis.text.x = element_text(angle=90)) + xlab("") + ylab("score")
+write.table(spermatheca_plot, file="spermatheca_metagene_scores.txt", quote=FALSE, col.names=FALSE)
+
+MAG_features = fs[features[[3]]]
+MAG_features[is.na(MAG_features)] = 1
+MAG_counts = tissue_only[names(MAG_features), colnames(tissue_only) %in% subset(summarydata, tissue == "MAG")$Name]
+MAG_scores = MAG_features * log(rowMeans(MAG_counts))
+MAG_plot = sort(MAG_scores, decreasing=TRUE)[1:50]
+melted = melt(tissue_only[names(MAG_plot),])
+m = merge(melted, summarydata, by.x="X2", by.y="Name")
+ggplot(m, aes(X1, value, color=tissue)) + geom_point() + scale_y_log10() +
+    theme_bw(base_size=10) +
+    theme(panel.grid.major = element_line(size = .5, color = "grey"),
+          axis.text.x = element_text(angle=90)) + xlab("") + ylab("score")
+write.table(MAG_plot, file="MAG_metagene_scores.txt", quote=FALSE, col.names=FALSE)
+
+body_features = fs[features[[2]]]
+body_features[is.na(body_features)] = 1
+body_counts = tissue_only[names(body_features), colnames(tissue_only) %in% subset(summarydata, tissue == "body")$Name]
+body_scores = body_features * log(rowMeans(body_counts))
+body_plot = sort(body_scores, decreasing=TRUE)[1:50]
+melted = melt(tissue_only[names(body_plot),])
+m = merge(melted, summarydata, by.x="X2", by.y="Name")
+ggplot(m, aes(X1, value, color=tissue)) + geom_point() + scale_y_log10() +
+    theme_bw(base_size=10) +
+    theme(panel.grid.major = element_line(size = .5, color = "grey"),
+          axis.text.x = element_text(angle=90)) + xlab("") + ylab("score")
+write.table(body_plot, file="body_metagene_scores.txt", quote=FALSE, col.names=FALSE)
 ```
 
+We can see that the metagenes separate out the different body parts for the most
+part, except for a single body sample which has a signature more similar to
+the atrium than the body samples. Could that sample have both atrium and the rest of
+body in it?
+
 # Digging into AALB000422, AALB000423 and AALB014036
-Why are 422 and 423 missing? It looks like they are only expressed in MAG, and are expressed
-at an extremely high level in MAG.
+Why are 422 and 423 missing? It looks like they are only expressed in MAG, and are expressed at an extremely high level in MAG.
 
 ```{r missing-genes}
 missing_genes = c("AALB000422", "AALB000423")
@@ -528,7 +591,7 @@ old_melted_counts$run = "old"
 head(old_melted_counts)
 
 in_both = rbind(melted_counts[melted_counts$sample %in% old_melted_counts$sample,], old_melted_counts)
-m = merge(melted_counts, old_melted_counts, by.x=c("gene", "sample"), by.y=c("gene", "sample"),
+mcompare = merge(melted_counts, old_melted_counts, by.x=c("gene", "sample"), by.y=c("gene", "sample"),
  all=FALSE)
 ```
 
@@ -537,7 +600,7 @@ analysis. This is likely to be partially due improvements in the aligner and imp
 in the gene models.
 
 ```{r old-vs-new}
-ggplot(m, aes(count.x, count.y)) + geom_point() + xlab("new") + ylab("old") + scale_y_sqrt() + scale_x_sqrt()
+ggplot(mcompare, aes(count.x, count.y)) + geom_point() + xlab("new") + ylab("old") + scale_y_sqrt() + scale_x_sqrt()
 ```
 
 Looking at the old code that just had the atrium and MAG to compare, we did the same thing where we built the model using all of the samples. We used limma last time to call differential expression instead of DESeq2 which is another source of difference; we could do the same thing again for this sample and see if it is a DESeq2 vs limma difference or not.
@@ -545,26 +608,24 @@ Looking at the old code that just had the atrium and MAG to compare, we did the 
 ```{r mag-limma}
 library(edgeR)
 design = model.matrix(~ 0 + tissue_status, data=summarydata)
-colnames(design) = c("atrium_mated", "atrium_virgin", "body_mated", "body_virgin",
-           "head_mated", "head_virgin", "MAG_mated", "MAG_virgin",
-            "spermatheca_mated", "spermatheca_virgin")
+colnames(design) = gsub("tissue_status", "", colnames(design))
 y = DGEList(counts=counts)
 y = calcNormFactors(y)
-v = voom(y, design, plot=FALSE)
-fit = lmFit(v, design)
+v = voom(y, design, plot=TRUE)
+fit_limma = lmFit(v, design)
 cm = makeContrasts(atrium = atrium_mated - atrium_virgin,
                    MAG = MAG_mated - MAG_virgin,
                    head = head_mated - head_virgin,
                    spermatheca = spermatheca_mated - spermatheca_virgin, levels=design)
-fit2 = contrasts.fit(fit, cm)
-fit2 = eBayes(fit2)
-MAG_results = topTable(fit2, n=Inf, p.value=1, coef="MAG")
-MAG_results[missing_genes,]
+fit_limma2 = contrasts.fit(fit_limma, cm)
+fit_limma2 = eBayes(fit_limma2)
+MAG_results_limma = topTable(fit_limma2, n=Inf, p.value=1, coef="MAG")
+MAG_results_limma[missing_genes,]
 ```
 
-So it looks like these genes get knocked out of being significant and it isn't a limma-DESeq2
-difference. It looks like adding the other tissues in knocks them out.
-
+ALB000422 gets knocked out of being significant if you use limma instead of
+DESeq2, but AALB000423 doesn't. If we just do what we did before, include
+only the atirum and the MAG results, they are both significant.
 
 ```{r mag-limma-atrium-MAG-only}
 library(edgeR)
@@ -574,20 +635,20 @@ summarysubset$tissue_status = as.character(summarysubset$tissue_status)
 summarysubset$tissue = as.character(summarysubset$tissue)
 summarysubset$status = as.character(summarysubset$status)
 design = model.matrix(~ 0 + tissue_status, data=summarysubset)
-colnames(design) = c("MAG_mated", "MAG_virgin", "atrium_mated", "atrium_virgin")
+colnames(design) = gsub("tissue_status", "", colnames(design))
 y = DGEList(counts=countssubset)
 y = calcNormFactors(y)
 v = voom(y, design, plot=FALSE)
-fit = lmFit(v, design)
+fit_limma_subset = lmFit(v, design)
 cm = makeContrasts(atrium = atrium_mated - atrium_virgin,
                    MAG = MAG_mated - MAG_virgin, levels=design)
-fit2 = contrasts.fit(fit, cm)
-fit2 = eBayes(fit2)
-MAG_results = topTable(fit2, n=Inf, p.value=1, coef="MAG")
-MAG_results[missing_genes,]
+fit_limma_subset2 = contrasts.fit(fit_limma_subset, cm)
+fit_limma_subset2 = eBayes(fit_limma_subset2)
+MAG_results_limma_subset = topTable(fit_limma_subset2, n=Inf, p.value=1, coef="MAG")
+MAG_results_limma_subset[missing_genes,]
 ```
 
-Quantile normalizing the voom counts also drops them out completely. 
+However quantile normalizing the voom counts also has an effect:
 
 ```{r mag-limma-atrium-normalized}
 library(edgeR)
@@ -597,42 +658,101 @@ summarysubset$tissue_status = as.character(summarysubset$tissue_status)
 summarysubset$tissue = as.character(summarysubset$tissue)
 summarysubset$status = as.character(summarysubset$status)
 design = model.matrix(~ 0 + tissue_status, data=summarysubset)
-colnames(design) = c("MAG_mated", "MAG_virgin", "atrium_mated", "atrium_virgin")
+colnames(design) = gsub("tissue_status", "", colnames(design))
 y = DGEList(counts=countssubset)
 y = calcNormFactors(y)
 v = voom(y, design, plot=FALSE, normalize='quantile')
-fit = lmFit(v, design)
+fit_limma_subset_quantile = lmFit(v, design)
 cm = makeContrasts(atrium = atrium_mated - atrium_virgin,
                    MAG = MAG_mated - MAG_virgin, levels=design)
-fit2 = contrasts.fit(fit, cm)
-fit2 = eBayes(fit2)
-MAG_results_2 = topTable(fit2, n=Inf, p.value=1, coef="MAG")
-MAG_results_2[missing_genes,]
+fit_limma_subset_quantile2 = contrasts.fit(fit_limma_subset_quantile, cm)
+fit_limma_subset_quantile2 = eBayes(fit_limma_subset_quantile2)
+MAG_results_limma_subset_quantile = topTable(fit_limma_subset_quantile2, n=Inf, p.value=1, coef="MAG")
+MAG_results_limma_subset_quantile[missing_genes,]
 ```
 
-There are some reproducible hits swapping normalization, but it is only around half.
-There are a bunch of fringe genes that are sensitive to how we do the analysis.
+So there are a set of genes that are pretty sensitive to how we do the analysis;
+if we swap callers, or how we combine them together or how we do the normalization,
+it matters. These are a set of genes that are not robust changes. We can make
+reasonable arguments for doing any of these.
 
 
-head(m)
-ggplot(in_both[in_both$gene %in% missing_genes,], aes(gene, count, fill=run)) + geom_boxplot()
+```{r reproducible-hits}
+MAG <- MAG[order(rownames(MAG)),]
+MAG_results_limma <- MAG_results_limma[order(rownames(MAG_results_limma)),]
+MAG_results_limma_subset <- MAG_results_limma_subset[order(rownames(MAG_results_limma_subset)),]
+MAG_results_limma_subset_quantile <- MAG_results_limma_subset_quantile[order(rownames(MAG_results_limma_subset_quantile)),]
+```
 
-ggplot(in_both[in_both$gene %in% missing_genes,], aes(gene, count, fill=run)) +
- geom_bar(position="dodge", stat="identity") + facet_wrap(~ sample) +
- theme(axis.text.x=element_text(angle=90)) + xlab("") + ylab("# alignments")
+The actual fold changes between doing an analysis on the reduced dataset vs.
+the full one are not much different.
 
-in_either = unique(c(rownames(subset(MAG_results, adj.P.Val < 0.1)),
-    rownames(subset(MAG_results_2, adj.P.Val < 0.1))))
+```{r fold-change-subset}
+qplot(MAG_results_limma$logFC, MAG_results_limma_subset$logFC) +
+   xlab("full model") + ylab("reduced model") +
+  theme_bw() +
+  theme(text=element_text(family="Gill Sans", size=10),
+        strip.background = element_rect(fill="white"))
 
-signew = MAG_results[in_either,]
-signew$run = "new"
-sigold = MAG_results_2[in_either,]
-signew$run = "old"
+qplot((MAG_results_limma$logFC + MAG_results_limma_subset$logFC)/2,
+  MAG_results_limma$logFC - MAG_results_limma_subset$logFC, geom="hex") + xlab("average logFC") +
+  ylab("full logFC - reduced logFC") +
+  theme_bw() +
+  theme(text=element_text(family="Gill Sans", size=10),
+        strip.background = element_rect(fill="white")) +
+  ggtitle("bland-altman plot")
+```
 
-signew = subset(MAG_results, adj.P.Val < 0.1)[, c("logFC", "AveExpr", "adj.P.Val")]
+But the calculated FDR is very different:
+
+```{r padj-subset}
+qplot(MAG_results_limma$adj.P.Val, MAG_results_limma_subset$adj.P.Val) +
+    xlab("full model") + ylab("reduced model")
+```
+
+```{r correlation-plots}
+qplot((MAG_results_limma$logFC + MAG_results_limma_subset$logFC)/2,
+  MAG_results_limma$logFC - MAG_results_limma_subset$logFC) + xlab("average logFC") +
+    ylab("full logFC - reduced logFC")
+qplot((MAG_results_limma$P.Value + MAG_results_limma_subset$P.Value)/2,
+  MAG_results_limma$P.Value - MAG_results_limma_subset$P.Value) + xlab("average pvalue") + ylab("full pvalue - reduced pvalue")
+
+qplot((fit_limma$sigma+ fit_limma_subset$sigma)/2, fit_limma$sigma-fit_limma_subset$sigma) + stat_binhex() + scale_x_sqrt() +
+  xlab("average variance") + ylab("full - reduced variance")
+
+in_either = unique(c(rownames(subset(MAG_results_limma, adj.P.Val < 0.1)),
+    rownames(subset(MAG_results_limma_subset, adj.P.Val < 0.1))))
+
+signew = MAG_results_limma[in_either,]
+signew$run = "full"
 signew$sig = signew$adj.P.Val < 0.1
-sigold = subset(MAG_results_2, adj.P.Val < 0.1)[, c("logFC", "AveExpr", "adj.P.Val")]
+sigold = MAG_results_limma_subset[in_either,]
+sigold$run = "subset"
 sigold$sig = sigold$adj.P.Val < 0.1
 
-intersect(rownames(subset(MAG_results, adj.P.Val < 0.1)),
-          rownames(subset(MAG_results_2, adj.P.Val < 0.1))))
+m = merge(signew, sigold, by="row.names")
+m$both = ifelse(m$sig.x & m$sig.y, "both", ifelse(m$sig.x, "full only", "subset only"))
+m$minpval <- pmin(m$adj.P.Val.x, m$adj.P.Val.y)
+ggplot(m, aes((AveExpr.x + AveExpr.y)/2, (AveExpr.x - AveExpr.y),
+              size=minpval)) + geom_point(alpha=0.6) + xlab("average expression") + ylab("expression difference") + facet_wrap(~ both) +
+scale_size(range=c(0.3,3)) + element_blank() +
+guides(colour = guide_legend(override.aes = list(alpha = 1),
+                             title="found in"))
+
+allsig = rbind(signew, sigold)
+allsig$sig = allsig$adj.P.Val < 0.1
+allsig$id = rownames(allsig)
+library(dplyr)
+
+ggplot(allsig, aes(AveExpr, logFC, shape=run, color=sig)) + geom_point()
+```
+
+# limma
+Write out the counts and subsetted summardata file for use with limma.
+
+```{r limma-write}
+write.table(file="limma.counts", counts, col.names=TRUE, row.names=TRUE,
+quote=FALSE, sep="\t")
+write.table(file="limma.summarydata.txt", summarydata, col.names=TRUE,
+row.names=TRUE, quote=FALSE, sep="\t")
+```
