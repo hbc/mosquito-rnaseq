@@ -40,6 +40,7 @@ summarydata = summarydata[, !colnames(summarydata) %in% c("species")]
 summarydata$tissue_status = as.factor(paste(summarydata$tissue, summarydata$status, sep="_"))
 summarydata$tissue_status_time = as.factor(paste(summarydata$tissue_status, summarydata$time,
                                                  sep="_"))
+summarydata$tissue_status_time_sex = as.factor(paste(summarydata$tissue_status, summarydata$time, summarydata$sex, sep="_"))
 ```
 
 ```{r heatmap-function}
@@ -75,7 +76,7 @@ ggplot(summarydata, aes(x=Name, y=Mapped)) +
     theme(panel.grid.major = element_line(size = .5, color = "grey"),
           axis.text.x = element_text(angle=90)) +
     geom_bar(stat="identity") +
-    ylab("mapped reads") + xlab("") 
+    ylab("mapped reads") + xlab("")
 ```
 
 ## Genomic mapping rate
@@ -85,7 +86,7 @@ ggplot(summarydata, aes(x=Name, y=Mapping.Rate)) +
     ylab("mapping rate") + xlab("") +
     theme_bw(base_size=10) +
     theme(panel.grid.major = element_line(size = .5, color = "grey"),
-          axis.text.x = element_text(angle=90)) 
+          axis.text.x = element_text(angle=90))
 ```
 
 ## Number of genes detected
@@ -95,7 +96,7 @@ ggplot(summarydata, aes(x=Name, y=Genes.Detected)) +
     theme_bw(base_size=10) +
     theme(panel.grid.major = element_line(size = .5, color = "grey"),
           axis.text.x = element_text(angle=90)) +
-    ylab("genes detected") + xlab("") 
+    ylab("genes detected") + xlab("")
 ```
 
 ## Exonic mapping rate
@@ -105,7 +106,7 @@ ggplot(summarydata, aes(x=Name, y=Exonic.Rate)) +
     theme_bw(base_size=10) +
     theme(panel.grid.major = element_line(size = .5, color = "grey"),
           axis.text.x = element_text(angle=90)) +
-    ylab("exonic mapping rate") + xlab("") 
+    ylab("exonic mapping rate") + xlab("")
 ```
 
 ## rRNA mapping rate
@@ -115,7 +116,7 @@ ggplot(summarydata, aes(x=Name, y=rRNA.rate)) +
     theme_bw(base_size=10) +
     theme(panel.grid.major = element_line(size = .5, color = "grey"),
           axis.text.x = element_text(angle=90)) +
-    ylab("rRNA rate") + xlab("") 
+    ylab("rRNA rate") + xlab("")
 ```
 
 ## Estimated fragment length of paired-end reads
@@ -211,9 +212,9 @@ correlation with the other samples but correlate with each other. These are
 DT3_HV, DT1_HM, DT1_RBV and BT3_HV. Is there anything special about these samples that
 we don't know about? Did someone else make these libraries? Could you look through
 your notebooks and see if maybe there is something about them that would explain why
-they are correlated with each other? 
+they are correlated with each other?
 
-That leaves us with four outlier samples CT3_GAMB_Sp_M, DT3_HV, DT1_HM, DT1_RBV, BT3_HV. 
+That leaves us with four outlier samples CT3_GAMB_Sp_M, DT3_HV, DT1_HM, DT1_RBV, BT3_HV.
 We'll drop all of these now.
 
 ```{r drop-outliers}
@@ -302,6 +303,7 @@ deseq_go = function(deseqres, gsc) {
 # Differential expression
 
 ```{r deseq2-expression-analysis}
+design = ~ sex + tissue_status
 counts <- counts[rowSums(counts>0)>1,]
 dds = DESeqDataSetFromMatrix(countData=counts,
     colData=summarydata, design = design)
@@ -314,6 +316,9 @@ time_design = ~sex+tissue_status_time
 time_dds = DESeqDataSetFromMatrix(countData=counts,
     colData=summarydata, design = time_design)
 time_dds = DESeq(time_dds)
+time_sex_design = ~tissue_status_time_sex
+time_sex_dds = DESeqDataSetFromMatrix(countData=counts,
+    colData=summarydata, design = time_sex_design)
 ```
 
 ## Effect of variance stabilization
@@ -391,7 +396,7 @@ atrium_3_24_together = intersect(rownames(atrium_time_24_difference),
 atrium_3_4_union = union(rownames(atrium_time_24_difference), rownames(atrium_time_3_difference))
 ```
 
-There are quite a few time specific differences in the atrium, `r nrow(atrium_time_3_difference)` 
+There are quite a few time specific differences in the atrium, `r nrow(atrium_time_3_difference)`
 in the 3 hour comparison and `r nrow(atrium_time_24_difference)` in the 24 hour comparison. There
 are `r length(intersect(rownames(atrium_time_24_difference), rownames(atrium_time_3_difference)))`
 that are in both the 3 and 24 hour comparisons, indicating there is a stable set of genes
@@ -472,7 +477,7 @@ head_3_24_together = intersect(rownames(head_time_24_difference),
 head_3_4_union = union(rownames(head_time_24_difference), rownames(head_time_3_difference))
 ```
 
-There are quite a few time specific differences in the head, `r nrow(head_time_3_difference)` 
+There are quite a few time specific differences in the head, `r nrow(head_time_3_difference)`
 in the 3 hour comparison and `r nrow(head_time_24_difference)` in the 24 hour comparison. There
 are `r length(intersect(rownames(head_time_24_difference), rownames(head_time_3_difference)))`
 that are in both the 3 and 24 hour comparisons, indicating there is a stable set of genes
@@ -541,6 +546,32 @@ body_stats = as.data.frame(body[, c(2,6)])
 volcano_density_plot(body_stats, title=names(body_stats), lfc.cutoff=1.5)
 ```
 
+#### Body, time specific mating differences
+```{r body-time}
+body_time_3_all = results(time_dds, contrast=list(c("tissue_status_timebody_mated_3"),
+                          c("tissue_status_timebody_virgin_3")))
+body_time_3_difference = subset(body_time_3_all, padj < 0.1)
+body_time_24_all = results(time_dds, contrast=list(c("tissue_status_timebody_mated_24"),
+                          c("tissue_status_timebody_virgin_24")))
+body_time_24_difference = subset(body_time_24_all, padj < 0.1)
+body_3_24_together = intersect(rownames(body_time_24_difference),
+    rownames(body_time_3_difference))
+body_3_4_union = union(rownames(body_time_24_difference), rownames(body_time_3_difference))
+```
+
+There are not many time specific differences in the body, `r nrow(body_time_3_difference)`
+in the 3 hour comparison and `r nrow(body_time_24_difference)` in the 24 hour comparison. There
+are `r length(intersect(rownames(body_time_24_difference), rownames(body_time_3_difference)))`
+that are in both the 3 and 24 hour comparisons, indicating there is a stable set of genes
+that remains different between times 3 and 24 hours.
+
+```{r output-body-time-table}
+write.table(body_time_3_all, file="body_time_3.tsv", sep="\t", row.names=TRUE,
+  col.names=TRUE, quote=FALSE)
+write.table(deseq_go(body_time_3_all, gsc), file="body_time_3_go.tsv", sep="\t",
+            row.names=FALSE, col.names=TRUE, quote=FALSE)
+```
+
 ### spermatheca
 ```{r spermatheca-de}
 spermatheca = results(dds, contrast=list(c("tissue_statusspermatheca_mated"),
@@ -579,7 +610,7 @@ spermatheca_3_24_together = intersect(rownames(spermatheca_time_24_difference),
 spermatheca_3_4_union = union(rownames(spermatheca_time_24_difference), rownames(spermatheca_time_3_difference))
 ```
 
-There are quite a few time specific differences in the spermatheca, `r nrow(spermatheca_time_3_difference)` 
+There are quite a few time specific differences in the spermatheca, `r nrow(spermatheca_time_3_difference)`
 in the 3 hour comparison and `r nrow(spermatheca_time_24_difference)` in the 24 hour comparison. There
 are `r length(intersect(rownames(spermatheca_time_24_difference), rownames(spermatheca_time_3_difference)))`
 that are in both the 3 and 24 hour comparisons, indicating there is a stable set of genes
@@ -602,18 +633,138 @@ write.table(deseq_go(spermatheca_time_24_all, gsc), file="spermatheca_time_24_go
             row.names=FALSE, col.names=TRUE, quote=FALSE)
 ```
 
-#### comparison of spermatheca 24 hours mated with microarray results
-spermatheca_24_microarray = read.table("microarray-spermatheca.tsv", sep="\t")
-colnames(spermatheca_24_microarray) = c("ensembl_gene_id", "microarray")
-spermatheca_24_microarray = subset(spermatheca_24_microarray, ensembl_gene_id != "0")
-z = data.frame(spermatheca_time_24_all)
-m = merge(spermatheca_24_microarray, z, by.x="ensembl_gene_id", by.y="row.names")
+# limma
 
-keep = abs(m$lfcMLE) > 1.5 | abs(m$microarray) > 1.5
-hmm = m[keep,]
-fix_microarray = function(x) {
-    if(x > 0) {
-        return(x)
-    }
-    else {
-        return(abs(1/x))}}
+```{r limma-write}
+write.table(file="limma.counts", counts, col.names=TRUE, row.names=TRUE,
+quote=FALSE, sep="\t")
+write.table(file="limma.summarydata.txt", summarydata, col.names=TRUE,
+row.names=TRUE, quote=FALSE, sep="\t")
+```
+
+# Tissue markers
+One of the things we can do with this data is to produce a set of tissue-specific markers. We're
+looking for a set a gene signatures that can be used to classify the different
+tissues.
+
+We'll do NMF to pull out gene signatures for the different individual tissues.
+
+```{r limma-counts}
+cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7", "#000000")
+
+library(edgeR)
+library(limma)
+library(NMF)
+design = ~sex + tissue_status + sex:tissue_status
+dge = DGEList(counts=counts)
+dge = calcNormFactors(y)
+voomed = voom(dge, plot=TRUE)
+#tissue_metadata = subset(summarydata, tissue != "body")
+tissue_metadata <-  summarydata
+tissue_only = normalized_counts[, colnames(normalized_counts) %in% rownames(tissue_metadata)]
+tissue_only = tissue_only[rowSums(tissue_only) > 1,]
+adf_tissue = AnnotatedDataFrame(tissue_metadata[,c("sex", "tissue")],
+    data.frame(labelDescription=c("sex", "tissue")))
+x = ExpressionSet(as.matrix(tissue_only), adf_tissue)
+nbasis <- length(unique(summarydata$tissue))
+```
+
+```{r run-nmf}
+n = nmf(x, nbasis, nrun=100, .options=list(parallel=FALSE))
+```
+
+```{r nmf-plots}
+consensus = consensusmap(n, annCol=x)
+basismap(n, scale="r1", annColors=list(basis=cbPalette[4:8],
+         consensus=brewer.pal(4, "Spectral")),
+         main="Metagene Components - All Contributing Genes", Rowv=TRUE)
+s = featureScore(n)
+summary(s)
+s = extractFeatures(n)
+str(s)
+z = featureScore(n)
+
+
+numfeatures <- sapply(seq(0,1,0.01), function(num) {
+  lapply(extractFeatures(n, num), function(x){
+    length(x)
+  })
+})
+minnumfeatures=20
+rel.basis.contrib.cutoff <- max(seq(0,1,0.01)[apply(numfeatures,2, function(x) all(x>minnumfeatures))])
+
+basismap(n, scale="r1", subsetRow=rel.basis.contrib.cutoff,annColors=list(basis=cbPalette[4:8], consensus=brewer.pal(4, "Spectral")), main="Metagene Components - Most Specific Genes")
+
+coefmap(n, scale="c1", labCol=tissue_metadata$tissue, annColors=list(basis=cbPalette[4:8]))
+
+# write out the metagene features
+
+fs = featureScore(n)
+features = extractFeatures(n, 0.90)
+head_features = fs[features[[1]]]
+head_features[is.na(head_features)] = 1
+head_counts = tissue_only[names(head_features), colnames(tissue_only) %in% subset(summarydata, tissue == "head")$Name]
+head_scores = head_features * log(rowMeans(head_counts))
+head_plot = sort(head_scores, decreasing=TRUE)[1:50]
+melted = melt(tissue_only[names(head_plot),])
+m = merge(melted, summarydata, by.x="X2", by.y="Name")
+ggplot(m, aes(X1, value, color=tissue)) + geom_point() + scale_y_log10() +
+    theme_bw(base_size=10) +
+    theme(panel.grid.major = element_line(size = .5, color = "grey"),
+          axis.text.x = element_text(angle=90)) + xlab("") + ylab("score")
+write.table(head_plot, file="head_metagene_scores.txt", quote=FALSE, col.names=FALSE)
+
+
+atrium_features = fs[features[[2]]]
+atrium_features[is.na(atrium_features)] = 1
+atrium_counts = tissue_only[names(atrium_features), colnames(tissue_only) %in% subset(summarydata, tissue == "atrium")$Name]
+atrium_scores = atrium_features * log(rowMeans(atrium_counts))
+atrium_plot = sort(atrium_scores, decreasing=TRUE)[1:50]
+melted = melt(tissue_only[names(atrium_plot),])
+m = merge(melted, summarydata, by.x="X2", by.y="Name")
+ggplot(m, aes(X1, value, color=tissue)) + geom_point() + scale_y_log10() +
+    theme_bw(base_size=10) +
+    theme(panel.grid.major = element_line(size = .5, color = "grey"),
+          axis.text.x = element_text(angle=90)) + xlab("") + ylab("score")
+write.table(atrium_plot, file="atrium_metagene_scores.txt", quote=FALSE, col.names=FALSE)
+
+
+spermatheca_features = fs[features[[3]]]
+spermatheca_features[is.na(spermatheca_features)] = 1
+spermatheca_counts = tissue_only[names(spermatheca_features), colnames(tissue_only) %in% subset(summarydata, tissue == "spermatheca")$Name]
+spermatheca_scores = spermatheca_features * log(rowMeans(spermatheca_counts))
+spermatheca_plot = sort(spermatheca_scores, decreasing=TRUE)[1:50]
+melted = melt(tissue_only[names(spermatheca_plot),])
+m = merge(melted, summarydata, by.x="X2", by.y="Name")
+ggplot(m, aes(X1, value, color=tissue)) + geom_point() + scale_y_log10() +
+    theme_bw(base_size=10) +
+    theme(panel.grid.major = element_line(size = .5, color = "grey"),
+          axis.text.x = element_text(angle=90)) + xlab("") + ylab("score")
+write.table(spermatheca_plot, file="spermatheca_metagene_scores.txt", quote=FALSE, col.names=FALSE)
+
+MAG_features = fs[features[[5]]]
+MAG_features[is.na(MAG_features)] = 1
+MAG_counts = tissue_only[names(MAG_features), colnames(tissue_only) %in% subset(summarydata, tissue == "MAG")$Name]
+MAG_scores = MAG_features * log(rowMeans(MAG_counts))
+MAG_plot = sort(MAG_scores, decreasing=TRUE)[1:50]
+melted = melt(tissue_only[names(MAG_plot),])
+m = merge(melted, summarydata, by.x="X2", by.y="Name")
+ggplot(m, aes(X1, value, color=tissue)) + geom_point() + scale_y_log10() +
+    theme_bw(base_size=10) +
+    theme(panel.grid.major = element_line(size = .5, color = "grey"),
+          axis.text.x = element_text(angle=90)) + xlab("") + ylab("score")
+write.table(MAG_plot, file="MAG_metagene_scores.txt", quote=FALSE, col.names=FALSE)
+
+body_features = fs[features[[4]]]
+body_features[is.na(body_features)] = 1
+body_counts = tissue_only[names(body_features), colnames(tissue_only) %in% subset(summarydata, tissue == "body")$Name]
+body_scores = body_features * log(rowMeans(body_counts))
+body_plot = sort(body_scores, decreasing=TRUE)[1:50]
+melted = melt(tissue_only[names(body_plot),])
+m = merge(melted, summarydata, by.x="X2", by.y="Name")
+ggplot(m, aes(X1, value, color=tissue)) + geom_point() + scale_y_log10() +
+    theme_bw(base_size=10) +
+    theme(panel.grid.major = element_line(size = .5, color = "grey"),
+          axis.text.x = element_text(angle=90)) + xlab("") + ylab("score")
+write.table(body_plot, file="body_metagene_scores.txt", quote=FALSE, col.names=FALSE)
+```
