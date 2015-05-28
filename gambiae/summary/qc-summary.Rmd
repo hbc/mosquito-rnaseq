@@ -20,6 +20,8 @@ library(gplots)
 library(edgeR)
 library(CHBUtils)
 library(pheatmap)
+library(DESeq2)
+library(vsn)
 project_summary = "/Users/rory/cache/mosquito-rnaseq/gambiae/project-summary.csv"
 counts_file = "/Users/rory/cache/mosquito-rnaseq/gambiae/combined.counts"
 cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442",
@@ -242,8 +244,8 @@ of a DESeq2 results dataframe.
 library(biomaRt)
 library(GOstats)
 library(GSEABase)
-mart = useMart("vb_gene_mart_1412")
-gambiae = useMart(biomart="vb_gene_mart_1412", dataset="agambiae_eg_gene")
+mart = useMart("vb_gene_mart_1502")
+gambiae = useMart(biomart="vb_gene_mart_1502", dataset="agambiae_eg_gene")
 
 bm = getBM(mart=gambiae, attributes=c("ensembl_gene_id", "transcript_biotype", "go_name_1006",
                                       "go_accession", "go_namespace_1003", "external_gene_id",
@@ -319,6 +321,7 @@ time_dds = DESeq(time_dds)
 time_sex_design = ~tissue_status_time_sex
 time_sex_dds = DESeqDataSetFromMatrix(countData=counts,
     colData=summarydata, design = time_sex_design)
+time_sex_dds = DESeq(time_sex_dds)
 ```
 
 ## Effect of variance stabilization
@@ -572,6 +575,24 @@ write.table(deseq_go(body_time_3_all, gsc), file="body_time_3_go.tsv", sep="\t",
             row.names=FALSE, col.names=TRUE, quote=FALSE)
 ```
 
+#### Body, time specific mating differences, female only
+```{r body-time}
+body_time_3_all = results(time_sex_dds,
+                          contrast=list(c("tissue_status_time_sexbody_mated_3_female"),
+                                        c("tissue_status_time_sexbody_virgin_3_female")))
+body_time_3_difference = subset(body_time_3_all, padj < 0.1)
+body_time_24_all = results(time_dds, contrast=list(c("tissue_status_time_sexbody_mated_24_female"),
+                          c("tissue_status_time_sexbody_virgin_24_female")))
+body_time_24_difference = subset(body_time_24_all, padj < 0.1)
+body_3_24_together = intersect(rownames(body_time_24_difference),
+    rownames(body_time_3_difference))
+body_3_4_union = union(rownames(body_time_24_difference), rownames(body_time_3_difference))
+```
+
+
+time_sex_dds = DESeqDataSetFromMatrix(countData=counts,
+    colData=summarydata, design = time_sex_design)
+
 ### spermatheca
 ```{r spermatheca-de}
 spermatheca = results(dds, contrast=list(c("tissue_statusspermatheca_mated"),
@@ -719,7 +740,7 @@ atrium_features = fs[features[[2]]]
 atrium_features[is.na(atrium_features)] = 1
 atrium_counts = tissue_only[names(atrium_features), colnames(tissue_only) %in% subset(summarydata, tissue == "atrium")$Name]
 atrium_scores = atrium_features * log(rowMeans(atrium_counts))
-atrium_plot = sort(atrium_scores, decreasing=TRUE)[1:50]
+atrium_plot = atrium_plot[!is.na(atrium_plot)]
 melted = melt(tissue_only[names(atrium_plot),])
 m = merge(melted, summarydata, by.x="X2", by.y="Name")
 ggplot(m, aes(X1, value, color=tissue)) + geom_point() + scale_y_log10() +
@@ -729,7 +750,7 @@ ggplot(m, aes(X1, value, color=tissue)) + geom_point() + scale_y_log10() +
 write.table(atrium_plot, file="atrium_metagene_scores.txt", quote=FALSE, col.names=FALSE)
 
 
-spermatheca_features = fs[features[[3]]]
+spermatheca_features = fs[features[[4]]]
 spermatheca_features[is.na(spermatheca_features)] = 1
 spermatheca_counts = tissue_only[names(spermatheca_features), colnames(tissue_only) %in% subset(summarydata, tissue == "spermatheca")$Name]
 spermatheca_scores = spermatheca_features * log(rowMeans(spermatheca_counts))
@@ -742,7 +763,7 @@ ggplot(m, aes(X1, value, color=tissue)) + geom_point() + scale_y_log10() +
           axis.text.x = element_text(angle=90)) + xlab("") + ylab("score")
 write.table(spermatheca_plot, file="spermatheca_metagene_scores.txt", quote=FALSE, col.names=FALSE)
 
-MAG_features = fs[features[[5]]]
+MAG_features = fs[features[[3]]]
 MAG_features[is.na(MAG_features)] = 1
 MAG_counts = tissue_only[names(MAG_features), colnames(tissue_only) %in% subset(summarydata, tissue == "MAG")$Name]
 MAG_scores = MAG_features * log(rowMeans(MAG_counts))
@@ -755,7 +776,7 @@ ggplot(m, aes(X1, value, color=tissue)) + geom_point() + scale_y_log10() +
           axis.text.x = element_text(angle=90)) + xlab("") + ylab("score")
 write.table(MAG_plot, file="MAG_metagene_scores.txt", quote=FALSE, col.names=FALSE)
 
-body_features = fs[features[[4]]]
+body_features = fs[features[[5]]]
 body_features[is.na(body_features)] = 1
 body_counts = tissue_only[names(body_features), colnames(tissue_only) %in% subset(summarydata, tissue == "body")$Name]
 body_scores = body_features * log(rowMeans(body_counts))

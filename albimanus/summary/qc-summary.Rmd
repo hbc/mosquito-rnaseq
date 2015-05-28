@@ -21,6 +21,7 @@ library(edgeR)
 library(CHBUtils)
 library(pheatmap)
 library(knitr)
+library(DESeq2)
 project_summary = "../project-summary.csv"
 counts_file = "../combined.counts"
 cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442",
