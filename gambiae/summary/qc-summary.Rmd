@@ -576,12 +576,12 @@ write.table(deseq_go(body_time_3_all, gsc), file="body_time_3_go.tsv", sep="\t",
 ```
 
 #### Body, time specific mating differences, female only
-```{r body-time}
+```{r body-time-sex}
 body_time_3_all = results(time_sex_dds,
                           contrast=list(c("tissue_status_time_sexbody_mated_3_female"),
                                         c("tissue_status_time_sexbody_virgin_3_female")))
 body_time_3_difference = subset(body_time_3_all, padj < 0.1)
-body_time_24_all = results(time_dds, contrast=list(c("tissue_status_time_sexbody_mated_24_female"),
+body_time_24_all = results(time_sex_dds, contrast=list(c("tissue_status_time_sexbody_mated_24_female"),
                           c("tissue_status_time_sexbody_virgin_24_female")))
 body_time_24_difference = subset(body_time_24_all, padj < 0.1)
 body_3_24_together = intersect(rownames(body_time_24_difference),
@@ -589,9 +589,20 @@ body_3_24_together = intersect(rownames(body_time_24_difference),
 body_3_4_union = union(rownames(body_time_24_difference), rownames(body_time_3_difference))
 ```
 
+There are `r nrow(body_time_3_difference)`
+in the 3 hour comparison and `r nrow(body_time_24_difference)` in the 24 hour comparison. There
+are `r length(intersect(rownames(body_time_24_difference), rownames(body_time_3_difference)))`
+that are in both the 3 and 24 hour comparisons, indicating there is a stable set of genes
+that remains different between times 3 and 24 hours.
 
-time_sex_dds = DESeqDataSetFromMatrix(countData=counts,
-    colData=summarydata, design = time_sex_design)
+```{r output-body-time-sex-table}
+write.table(body_time_3_all, file="body_time_female_3.tsv", sep="\t", row.names=TRUE,
+  col.names=TRUE, quote=FALSE)
+write.table(body_time_24_all, file="body_time_female_24.tsv", sep="\t", row.names=TRUE,
+  col.names=TRUE, quote=FALSE)
+write.table(deseq_go(body_time_3_all, gsc), file="body_time_female_3_go.tsv", sep="\t",
+            row.names=FALSE, col.names=TRUE, quote=FALSE)
+```
 
 ### spermatheca
 ```{r spermatheca-de}
@@ -740,6 +751,7 @@ atrium_features = fs[features[[2]]]
 atrium_features[is.na(atrium_features)] = 1
 atrium_counts = tissue_only[names(atrium_features), colnames(tissue_only) %in% subset(summarydata, tissue == "atrium")$Name]
 atrium_scores = atrium_features * log(rowMeans(atrium_counts))
+atrium_plot = sort(atrium_scores, decreasing=TRUE)[1:50]
 atrium_plot = atrium_plot[!is.na(atrium_plot)]
 melted = melt(tissue_only[names(atrium_plot),])
 m = merge(melted, summarydata, by.x="X2", by.y="Name")
