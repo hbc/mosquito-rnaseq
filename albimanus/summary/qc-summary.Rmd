@@ -500,6 +500,7 @@ ggplot(m, aes(X1, value, color=tissue)) + geom_point() + scale_y_log10() +
     theme_bw(base_size=10) +
     theme(panel.grid.major = element_line(size = .5, color = "grey"),
           axis.text.x = element_text(angle=90)) + xlab("") + ylab("score")
+ggsave("head_metagene_plot.pdf")
 write.table(head_plot, file="head_metagene_scores.txt", quote=FALSE, col.names=FALSE)
 
 
@@ -514,6 +515,7 @@ ggplot(m, aes(X1, value, color=tissue)) + geom_point() + scale_y_log10() +
     theme_bw(base_size=10) +
     theme(panel.grid.major = element_line(size = .5, color = "grey"),
           axis.text.x = element_text(angle=90)) + xlab("") + ylab("score")
+ggsave("atrium_metagene_plot.pdf")
 write.table(atrium_plot, file="atrium_metagene_scores.txt", quote=FALSE, col.names=FALSE)
 
 
@@ -528,6 +530,7 @@ ggplot(m, aes(X1, value, color=tissue)) + geom_point() + scale_y_log10() +
     theme_bw(base_size=10) +
     theme(panel.grid.major = element_line(size = .5, color = "grey"),
           axis.text.x = element_text(angle=90)) + xlab("") + ylab("score")
+ggsave("spermatheca_metagene_plot.pdf")
 write.table(spermatheca_plot, file="spermatheca_metagene_scores.txt", quote=FALSE, col.names=FALSE)
 
 MAG_features = fs[features[[3]]]
@@ -541,6 +544,7 @@ ggplot(m, aes(X1, value, color=tissue)) + geom_point() + scale_y_log10() +
     theme_bw(base_size=10) +
     theme(panel.grid.major = element_line(size = .5, color = "grey"),
           axis.text.x = element_text(angle=90)) + xlab("") + ylab("score")
+ggsave("MAG_metagene_plot.pdf")
 write.table(MAG_plot, file="MAG_metagene_scores.txt", quote=FALSE, col.names=FALSE)
 
 body_features = fs[features[[2]]]
@@ -554,6 +558,7 @@ ggplot(m, aes(X1, value, color=tissue)) + geom_point() + scale_y_log10() +
     theme_bw(base_size=10) +
     theme(panel.grid.major = element_line(size = .5, color = "grey"),
           axis.text.x = element_text(angle=90)) + xlab("") + ylab("score")
+ggsave("body_metagene_plot.pdf")
 write.table(body_plot, file="body_metagene_scores.txt", quote=FALSE, col.names=FALSE)
 ```
 
@@ -756,4 +761,84 @@ write.table(file="limma.counts", counts, col.names=TRUE, row.names=TRUE,
 quote=FALSE, sep="\t")
 write.table(file="limma.summarydata.txt", summarydata, col.names=TRUE,
 row.names=TRUE, quote=FALSE, sep="\t")
+```
+
+# Ontological analysis setup
+
+These are some helper functions we defined to do a GO ontology of the results
+of a DESeq2 results dataframe.
+
+```{r setup-ontology}
+library(biomaRt)
+library(GOstats)
+library(GSEABase)
+mart = useMart(biomart="vb_gene_mart_1512", host="biomart.vectorbase.org")
+albimanus = useDataset(mart, dataset="aalbimanus_eg_gene")
+bm = getBM(mart=albimanus,
+           attributes=c("ensembl_gene_id", "transcript_biotype", "go_name_1006",
+                        "go_accession", "go_namespace_1003", "external_gene_id",
+                        "go_linkage_type"))
+goframeData = bm[, c("go_accession", "go_linkage_type", "ensembl_gene_id")]
+colnames(goframeData) = c("frame.go_id", "frame.Evidence", "frame.gene_id")
+goframeData = subset(goframeData, frame.Evidence != '')
+goFrame = GOFrame(goframeData)
+goAllFrame = GOAllFrame(goFrame)
+gsc = GeneSetCollection(goAllFrame, setType = GOCollection())
+
+run_go = function(universe, genes, gsc) {
+    # given a list of gene ids of the gene universe and the enriched genes
+    # and a genesetcollection of ontology terms, find enrichment
+    # for molecular function, biological process and cellular component
+    params = GSEAGOHyperGParams(name="foo", geneSetCollection=gsc, geneIds=genes,
+                                universeGeneIds=universe, ontology="MF",
+                                pvalueCutoff=0.1, conditional=FALSE, testDirection="over")
+    over = hyperGTest(params)
+    mf = summary(over)
+    colnames(mf)[1] = "GOID"
+    params = GSEAGOHyperGParams(name="foo", geneSetCollection=gsc, geneIds=genes,
+                                universeGeneIds=universe, ontology="BP",
+                                pvalueCutoff=0.1, conditional=FALSE, testDirection="over")
+    over = hyperGTest(params)
+    bp = summary(over)
+    colnames(bp)[1] = "GOID"
+    params = GSEAGOHyperGParams(name="foo", geneSetCollection=gsc, geneIds=genes,
+                                universeGeneIds=universe, ontology="CC",
+                                pvalueCutoff=0.1, conditional=FALSE, testDirection="over")
+    over = hyperGTest(params)
+    cc = summary(over)
+    colnames(cc)[1] = "GOID"
+    df = data.frame()
+    if(nrow(mf) > 0) {
+       mf$ontology = "MF"
+       df = rbind(df, mf)
+    }
+    if(nrow(cc) > 0) {
+       cc$ontology = "CC"
+       df = rbind(df, cc)
+    }
+    if(nrow(bp) > 0) {
+       bp$ontology = "BP"
+       df = rbind(df, bp)
+    }
+    return(df)}
+
+deseq_go = function(deseqres, gsc) {
+    # run GO ontology analysis using GOstats from a DESeq dataframe and
+    # a gene set collection
+    universe = rownames(subset(deseqres, baseMean > 10))
+    genes = rownames(subset(deseqres, baseMean > 10 & padj < 0.1))
+    return(run_go(universe, genes, gsc))}
+```
+
+```{r write-go-results}
+write.table(deseq_go(atrium, gsc), file="atrium_go.tsv", sep="\t", row.names=FALSE,
+            col.names=TRUE, quote=FALSE)
+write.table(deseq_go(MAG, gsc), file="MAG_go.tsv", sep="\t", row.names=FALSE,
+            col.names=TRUE, quote=FALSE)
+write.table(deseq_go(body, gsc), file="body_go.tsv", sep="\t", row.names=FALSE,
+            col.names=TRUE, quote=FALSE)
+write.table(deseq_go(head, gsc), file="head_go.tsv", sep="\t", row.names=FALSE,
+            col.names=TRUE, quote=FALSE)
+write.table(deseq_go(spermatheca, gsc), file="spermatheca_go.tsv", sep="\t",
+            row.names=FALSE, col.names=TRUE, quote=FALSE)
 ```
