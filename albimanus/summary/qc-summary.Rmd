@@ -830,15 +830,27 @@ deseq_go = function(deseqres, gsc) {
     return(run_go(universe, genes, gsc))}
 ```
 
+Here we looked at GO term enrichment for differentially expressed genes
+in mated compared to virgin tissues within each tissue.
+
+This performs a hypergeometric test for enriched
+genes against a background set. The background set of genes are all genes
+expressed in the tissue. We defined expressed as having a baseMean expression > 10.
+The enriched genes are defined as genes with a baseMean expression > 10 and
+an adjusted p-value for differential expression with mated/virgin status of
+< 0.1. We saved these as `atrium_go.tsv`, `head_go.tsv`, etc.
+
 ```{r write-go-results}
-write.table(deseq_go(atrium, gsc), file="atrium_go.tsv", sep="\t", row.names=FALSE,
+atrium_go = deseq_go(atrium, gsc)
+write.table(atrium_go, file="atrium_go.tsv", sep="\t", row.names=FALSE,
             col.names=TRUE, quote=FALSE)
-write.table(deseq_go(MAG, gsc), file="MAG_go.tsv", sep="\t", row.names=FALSE,
+MAG_go = deseq_go(MAG, gsc)
+write.table(MAG_go, file="MAG_go.tsv", sep="\t", row.names=FALSE,
             col.names=TRUE, quote=FALSE)
-write.table(deseq_go(body, gsc), file="body_go.tsv", sep="\t", row.names=FALSE,
+head_go = deseq_go(head, gsc)
+write.table(head_go, file="head_go.tsv", sep="\t", row.names=FALSE,
             col.names=TRUE, quote=FALSE)
-write.table(deseq_go(head, gsc), file="head_go.tsv", sep="\t", row.names=FALSE,
-            col.names=TRUE, quote=FALSE)
-write.table(deseq_go(spermatheca, gsc), file="spermatheca_go.tsv", sep="\t",
+spermatheca_go = deseq_go(spermatheca, gsc)
+write.table(spermatheca_go, file="spermatheca_go.tsv", sep="\t",
             row.names=FALSE, col.names=TRUE, quote=FALSE)
 ```
