@@ -100,7 +100,8 @@ ggplot(summarydata, aes(x=Name, y=Mapping.Rate)) +
 
 ## Number of genes detected
 ```{r genes-detected-plot}
-ggplot(summarydata, aes(x=Name, y=Genes.Detected)) +
+dd = data.frame(Name=names(counts), Genes.Detected = colSums(counts > 0))
+ggplot(dd, aes(x=Name, y=Genes.Detected)) +
     geom_bar(stat="identity") +
     theme_bw(base_size=10) +
     theme(panel.grid.major = element_line(size = .5, color = "grey"),
