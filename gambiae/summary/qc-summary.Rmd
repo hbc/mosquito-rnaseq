@@ -729,9 +729,9 @@ rel.basis.contrib.cutoff <- max(seq(0,1,0.01)[apply(numfeatures,2, function(x) a
 basismap(n, scale="r1", subsetRow=rel.basis.contrib.cutoff,annColors=list(basis=cbPalette[4:8], consensus=brewer.pal(4, "Spectral")), main="Metagene Components - Most Specific Genes")
 
 coefmap(n, scale="c1", labCol=tissue_metadata$tissue, annColors=list(basis=cbPalette[4:8]))
+```
 
-# write out the metagene features
-
+```{r write-features}
 fs = featureScore(n)
 features = extractFeatures(n, 0.90)
 head_features = fs[features[[1]]]
@@ -746,7 +746,7 @@ ggplot(m, aes(X1, value, color=tissue)) + geom_point() + scale_y_log10() +
     theme(panel.grid.major = element_line(size = .5, color = "grey"),
           axis.text.x = element_text(angle=90)) + xlab("") + ylab("score")
 ggsave("head_metagene_plot.pdf")
-write.table(head_plot, file="head_metagene_scores.txt", quote=FALSE, col.names=FALSE)
+write.table(head_scores, file="head_metagene_scores.txt", quote=FALSE, col.names=FALSE)
 
 
 atrium_features = fs[features[[2]]]
@@ -762,7 +762,7 @@ ggplot(m, aes(X1, value, color=tissue)) + geom_point() + scale_y_log10() +
     theme(panel.grid.major = element_line(size = .5, color = "grey"),
           axis.text.x = element_text(angle=90)) + xlab("") + ylab("score")
 ggsave("atrium_metagene_plot.pdf")
-write.table(atrium_plot, file="atrium_metagene_scores.txt", quote=FALSE, col.names=FALSE)
+write.table(atrium_scores, file="atrium_metagene_scores.txt", quote=FALSE, col.names=FALSE)
 
 
 spermatheca_features = fs[features[[4]]]
@@ -777,7 +777,7 @@ ggplot(m, aes(X1, value, color=tissue)) + geom_point() + scale_y_log10() +
     theme(panel.grid.major = element_line(size = .5, color = "grey"),
           axis.text.x = element_text(angle=90)) + xlab("") + ylab("score")
 ggsave("spermatheca_metagene_plot.pdf")
-write.table(spermatheca_plot, file="spermatheca_metagene_scores.txt", quote=FALSE, col.names=FALSE)
+write.table(spermatheca_scores, file="spermatheca_metagene_scores.txt", quote=FALSE, col.names=FALSE)
 
 MAG_features = fs[features[[3]]]
 MAG_features[is.na(MAG_features)] = 1
@@ -791,7 +791,7 @@ ggplot(m, aes(X1, value, color=tissue)) + geom_point() + scale_y_log10() +
     theme(panel.grid.major = element_line(size = .5, color = "grey"),
           axis.text.x = element_text(angle=90)) + xlab("") + ylab("score")
 ggsave("MAG_metagene_plot.pdf")
-write.table(MAG_plot, file="MAG_metagene_scores.txt", quote=FALSE, col.names=FALSE)
+write.table(MAG_scores, file="MAG_metagene_scores.txt", quote=FALSE, col.names=FALSE)
 
 body_features = fs[features[[5]]]
 body_features[is.na(body_features)] = 1
@@ -805,5 +805,5 @@ ggplot(m, aes(X1, value, color=tissue)) + geom_point() + scale_y_log10() +
     theme(panel.grid.major = element_line(size = .5, color = "grey"),
           axis.text.x = element_text(angle=90)) + xlab("") + ylab("score")
 ggsave("body_metagene_plot.pdf")
-write.table(body_plot, file="body_metagene_scores.txt", quote=FALSE, col.names=FALSE)
+write.table(body_scores, file="body_metagene_scores.txt", quote=FALSE, col.names=FALSE)
 ```
