@@ -502,7 +502,7 @@ ggplot(m, aes(X1, value, color=tissue)) + geom_point() + scale_y_log10() +
     theme(panel.grid.major = element_line(size = .5, color = "grey"),
           axis.text.x = element_text(angle=90)) + xlab("") + ylab("score")
 ggsave("head_metagene_plot.pdf")
-write.table(head_plot, file="head_metagene_scores.txt", quote=FALSE, col.names=FALSE)
+write.table(head_scores, file="head_metagene_scores.txt", quote=FALSE, col.names=FALSE)
 
 
 atrium_features = fs[features[[1]]]
@@ -517,7 +517,7 @@ ggplot(m, aes(X1, value, color=tissue)) + geom_point() + scale_y_log10() +
     theme(panel.grid.major = element_line(size = .5, color = "grey"),
           axis.text.x = element_text(angle=90)) + xlab("") + ylab("score")
 ggsave("atrium_metagene_plot.pdf")
-write.table(atrium_plot, file="atrium_metagene_scores.txt", quote=FALSE, col.names=FALSE)
+write.table(atrium_scores, file="atrium_metagene_scores.txt", quote=FALSE, col.names=FALSE)
 
 
 spermatheca_features = fs[features[[4]]]
@@ -532,7 +532,7 @@ ggplot(m, aes(X1, value, color=tissue)) + geom_point() + scale_y_log10() +
     theme(panel.grid.major = element_line(size = .5, color = "grey"),
           axis.text.x = element_text(angle=90)) + xlab("") + ylab("score")
 ggsave("spermatheca_metagene_plot.pdf")
-write.table(spermatheca_plot, file="spermatheca_metagene_scores.txt", quote=FALSE, col.names=FALSE)
+write.table(spermatheca_scores, file="spermatheca_metagene_scores.txt", quote=FALSE, col.names=FALSE)
 
 MAG_features = fs[features[[3]]]
 MAG_features[is.na(MAG_features)] = 1
@@ -546,7 +546,7 @@ ggplot(m, aes(X1, value, color=tissue)) + geom_point() + scale_y_log10() +
     theme(panel.grid.major = element_line(size = .5, color = "grey"),
           axis.text.x = element_text(angle=90)) + xlab("") + ylab("score")
 ggsave("MAG_metagene_plot.pdf")
-write.table(MAG_plot, file="MAG_metagene_scores.txt", quote=FALSE, col.names=FALSE)
+write.table(MAG_scores, file="MAG_metagene_scores.txt", quote=FALSE, col.names=FALSE)
 
 body_features = fs[features[[2]]]
 body_features[is.na(body_features)] = 1
@@ -560,7 +560,7 @@ ggplot(m, aes(X1, value, color=tissue)) + geom_point() + scale_y_log10() +
     theme(panel.grid.major = element_line(size = .5, color = "grey"),
           axis.text.x = element_text(angle=90)) + xlab("") + ylab("score")
 ggsave("body_metagene_plot.pdf")
-write.table(body_plot, file="body_metagene_scores.txt", quote=FALSE, col.names=FALSE)
+write.table(body_scores, file="body_metagene_scores.txt", quote=FALSE, col.names=FALSE)
 ```
 
 We can see that the metagenes separate out the different body parts for the most
