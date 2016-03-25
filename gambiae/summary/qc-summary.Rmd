@@ -807,3 +807,25 @@ ggplot(m, aes(X1, value, color=tissue)) + geom_point() + scale_y_log10() +
 ggsave("body_metagene_plot.pdf")
 write.table(body_scores, file="body_metagene_scores.txt", quote=FALSE, col.names=FALSE)
 ```
+
+# Differential expression of MAG by itself.
+There was some question about whether including the other samples hurt the
+power for MAG. Here we drop all non-MAG tissues and redo the differential
+expression analysis.
+
+```{r}
+design = ~ tissue_status
+mag_summarydata = subset(summarydata, tissue == "MAG")
+mag_counts = counts[, rownames(mag_summarydata)]
+mag_counts <- mag_counts[rowSums(mag_counts>0)>1,]
+mag_dds = DESeqDataSetFromMatrix(countData=mag_counts,
+    colData=mag_summarydata, design = design)
+mag_dds = DESeq(mag_dds)
+MAG_alone = results(mag_dds, contrast=list(c("tissue_statusMAG_mated"),
+                          c("tissue_statusMAG_virgin")))
+write.table(MAG_alone, file="MAG_alone_deseq2.tsv", sep="\t", row.names=TRUE, col.names=TRUE,
+            quote=FALSE)
+write.table(deseq_go(MAG_alone, gsc), file="MAG_alone_go.tsv", sep="\t", row.names=FALSE,
+            col.names=TRUE, quote=FALSE)
+MAG_alone_de = subset(MAG_alone, padj < 0.1)
+```
